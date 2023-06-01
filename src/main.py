@@ -70,7 +70,7 @@ def main():
 	full = vars(parser.parse_args())
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "num_batches"]
-	with open(f"{args.out}.log", "w") as log:
+	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
 		log.write("fastmixture v0.1\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
 		log.write(f"Directory: {os.getcwd()}\n")
@@ -130,9 +130,9 @@ def main():
 
 	# Optional save of initial factor matrices (debug feature)
 	if args.als_save:
-		np.savetxt(f"{args.out}.als.Q", Q, fmt="%.5f")
+		np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.als.Q", Q, fmt="%.5f")
 		if not args.no_freqs:
-			np.savetxt(f"{args.out}.als.P", P, fmt="%.5f")
+			np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.als.P", P, fmt="%.5f")
 
 	# Mini-batch parameters for stochastic EM
 	if args.no_batch:
@@ -203,16 +203,16 @@ def main():
 			ts = time()
 
 	### Save estimates and write output to log-file
-	np.savetxt(f"{args.out}.Q", Q, fmt="%.5f")
+	np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.Q", Q, fmt="%.5f")
 	if not args.no_freqs:
-		np.savetxt(f"{args.out}.P", P, fmt="%.5f")
+		np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.P", P, fmt="%.5f")
 	t_tot = time()-start
 	t_min = int(t_tot//60)
 	t_sec = int(t_tot - t_min*60)
 	print(f"Total elapsed time: {t_min}m{t_sec}s")
-	with open(f"{args.out}.log", "a") as log:
+	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "a") as log:
 		log.write(f"\nFinal log-likelihood: {round(lkCur,1)}\n")
 		log.write(f"Total elapsed time: {t_min}m{t_sec}s\n")
-		log.write(f"Saved Q matrix as {args.out}.Q\n")
+		log.write(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q\n")
 		if not args.no_freqs:
-			log.write(f"Saved P matrix as {args.out}.P\n")
+			log.write(f"Saved P matrix as {args.out}.K{args.K}.s{args.seed}.P\n")
