@@ -111,6 +111,7 @@ def main():
 	print(f"Loaded {N} samples and {M} SNPs.", flush=True)
 
 	### Initalize parameters
+	converged = False
 	f = np.zeros(M)
 	a = np.zeros(N)
 	lkVec = np.zeros(M)
@@ -198,6 +199,7 @@ def main():
 				if (abs(lkCur - lkPre) < args.tole):
 					print("Converged!")
 					print(f"Final log-likelihood: {round(lkCur,1)}")
+					converged = True
 					break
 			lkPre = lkCur
 			ts = time()
@@ -212,6 +214,8 @@ def main():
 	print(f"Total elapsed time: {t_min}m{t_sec}s")
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "a") as log:
 		log.write(f"\nFinal log-likelihood: {round(lkCur,1)}\n")
+		if not converged:
+			log.write("EM algorithm did not converge!\n")
 		log.write(f"Total elapsed time: {t_min}m{t_sec}s\n")
 		log.write(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q\n")
 		if not args.no_freqs:
