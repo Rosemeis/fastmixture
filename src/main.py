@@ -28,8 +28,8 @@ parser.add_argument("-s", "--seed", metavar="int", type=int, default=42,
 	help="Set random seed (42)")
 parser.add_argument("-i", "--iter", metavar="int", type=int, default=1000,
 	help="Maximum number of iterations (1000)")
-parser.add_argument("-e", "--tole", metavar="float", type=float, default=1.0,
-	help="Tolerance in log-likelihood units between c-th iterations (1.0)")
+parser.add_argument("-e", "--tole", metavar="float", type=float, default=0.5,
+	help="Tolerance in log-likelihood units between c-th iterations (0.5)")
 parser.add_argument("-c", "--check", metavar="int", type=int, default=10,
 	help="Iteration to estimate log-likelihood for convergence check (10)")
 parser.add_argument("--num_batches", metavar="int", type=int, default=16,

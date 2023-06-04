@@ -1,6 +1,5 @@
 import numpy as np
 import subprocess
-from math import ceil
 from src import svd
 from src import em
 from src import em_batch
