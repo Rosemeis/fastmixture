@@ -16,29 +16,29 @@ from time import time
 parser = argparse.ArgumentParser(prog="fastmixture")
 parser.add_argument("--version", action="version",
 	version="%(prog)s v0.1")
-parser.add_argument("-b", "--bfile", metavar="path",
+parser.add_argument("-b", "--bfile", metavar="PLINK",
 	help="Prefix for PLINK files (.bed, .bim, .fam)")
-parser.add_argument("-k", "--K", metavar="int", type=int,
+parser.add_argument("-k", "--K", metavar="INT", type=int,
 	help="Number of ancestral components")
-parser.add_argument("-t", "--threads", metavar="int", type=int, default=1,
+parser.add_argument("-t", "--threads", metavar="INT", type=int, default=1,
 	help="Number of threads (1)")
-parser.add_argument("-o", "--out", metavar="string", default="fastmixture",
+parser.add_argument("-o", "--out", metavar="OUTPUT", default="fastmixture",
 	help="Prefix output name (fastmixture)")
-parser.add_argument("-s", "--seed", metavar="int", type=int, default=42,
+parser.add_argument("-s", "--seed", metavar="INT", type=int, default=42,
 	help="Set random seed (42)")
-parser.add_argument("-i", "--iter", metavar="int", type=int, default=1000,
+parser.add_argument("-i", "--iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations (1000)")
-parser.add_argument("-e", "--tole", metavar="float", type=float, default=0.5,
+parser.add_argument("-e", "--tole", metavar="FLOAT", type=float, default=0.5,
 	help="Tolerance in log-likelihood units between c-th iterations (0.5)")
-parser.add_argument("-c", "--check", metavar="int", type=int, default=10,
+parser.add_argument("-c", "--check", metavar="INT", type=int, default=10,
 	help="Iteration to estimate log-likelihood for convergence check (10)")
-parser.add_argument("--num_batches", metavar="int", type=int, default=16,
+parser.add_argument("--num_batches", metavar="INT", type=int, default=16,
 	help="Number of mini-batches (16)")
-parser.add_argument("--power", metavar="int", type=int, default=7,
+parser.add_argument("--power", metavar="INT", type=int, default=7,
 	help="Number of power iterations in randomized SVD (7)")
-parser.add_argument("--als_iter", metavar="int", type=int, default=500,
+parser.add_argument("--als_iter", metavar="INT", type=int, default=500,
 	help="Maximum number of iterations in NMF (500)")
-parser.add_argument("--als_tole", metavar="float", type=float, default=1e-5,
+parser.add_argument("--als_tole", metavar="FLOAT", type=float, default=1e-5,
 	help="Tolerance for RMSE of P between iterations (1e-5)")
 parser.add_argument("--no_freqs", action="store_true",
 	help="Do not save P-matrix")
