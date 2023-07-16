@@ -78,13 +78,13 @@ cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 # Update P in acceleration
 cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		double[:,::1] sumQA, double[:,::1] sumQB, double[:,::1] D, double[::1] a, \
-		long[::1] idx, int t):
+		long[::1] idx, int C, int t):
 	cdef:
 		int M = idx.shape[0]
 		int B = G.shape[1]
 		int N = Q.shape[0]
 		int K = P.shape[1]
-		int i, j, k, x, y, i0, k0, b, bytepart
+		int c, i, j, k, x, y, i0, k0, b, bytepart
 		unsigned char[4] recode = [0, 9, 1, 2]
 		unsigned char mask = 3
 		unsigned char byte
@@ -106,6 +106,34 @@ cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 				tmpQA[i0*K+k0] = 0.0
 				tmpQB[i0*K+k0] = 0.0
 		for j in prange(M):
+			# Extra P iterations
+			for c in range(C-1):
+				for k in range(K):
+					sumAG[k] = 0.0
+					sumBG[k] = 0.0
+				i = 0
+				for b in range(B):
+					byte = G[idx[j],b]
+					for bytepart in range(4):
+						if recode[byte & mask] != 9:
+							g = <double>recode[byte & mask]
+							h = 0.0
+							for k in range(K):
+								h = h + Q[i,k]*P[idx[j],k]
+							for k in range(K):
+								sumAG[k] = sumAG[k] + g*Q[i,k]/h
+								sumBG[k] = sumBG[k] + (2-g)*Q[i,k]/(1-h)
+						byte = byte >> 2
+						i = i + 1
+						if i == N:
+							break					
+				for k in range(K):
+					sumAG[k] = sumAG[k]*P[idx[j],k]
+					sumBG[k] = sumBG[k]*(1-P[idx[j],k])
+					P[idx[j],k] = sumAG[k]/(sumAG[k] + sumBG[k])
+					P[idx[j],k] = min(max(P[idx[j],k], 1e-5), 1-(1e-5))
+
+			# Final P iteration
 			for k in range(K):
 				sumAG[k] = 0.0
 				sumBG[k] = 0.0
