@@ -95,6 +95,7 @@ def main():
 	import numpy as np
 	from math import ceil
 	from src import em
+	from src import em_batch
 	from src import functions
 
 	### Read data
