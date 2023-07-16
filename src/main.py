@@ -173,6 +173,8 @@ def main():
 				Bs = np.sort(b)
 				functions.squaremBatch(G, P, Q, a, sumP1, sumP2, sumQA, sumQB, \
 					diffP1, diffP2, diffP3, diffQ1, diffQ2, diffQ3, Bs, args.threads)
+				em_batch.updateP(G, P, Q, sumQA, sumQB, a, Bs, args.threads)
+				em.updateQ(Q, sumQA, sumQB, a)
 		else: # SQUAREM full updates
 			functions.squarem(G, P, Q, a, sumP1, sumP2, sumQA, sumQB, \
 				diffP1, diffP2, diffP3, diffQ1, diffQ2, diffQ3, args.threads)
