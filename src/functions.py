@@ -103,13 +103,13 @@ def squarem(G, P, Q, a, sP1, sP2, sQA, sQB, DP1, DP2, DP3, DQ1, DQ2, DQ3, thread
 
 # Mini-batch update
 def squaremBatch(G, P, Q, a, sP1, sP2, sQA, sQB, DP1, DP2, DP3, DQ1, DQ2, DQ3, B, \
-		batch, threads):
+		threads):
 	# 1st EM step
-	em_batch.accelP(G, P, Q, sQA, sQB, DP1, a, B, batch, threads)
+	em_batch.accelP(G, P, Q, sQA, sQB, DP1, a, B, threads)
 	em.accelQ(Q, sQA, sQB, DQ1, a)
 
 	# 2nd EM step
-	em_batch.accelP(G, P, Q, sQA, sQB, DP2, a, B, 1, threads)
+	em_batch.accelP(G, P, Q, sQA, sQB, DP2, a, B, threads)
 	em.accelQ(Q, sQA, sQB, DQ2, a)
 
 	# Batch acceleration update

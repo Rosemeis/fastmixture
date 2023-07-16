@@ -173,14 +173,13 @@ def main():
 			for b in B_list:
 				Bs = np.sort(b)
 				functions.squaremBatch(G, P, Q, a, sumP1, sumP2, sumQA, sumQB, \
-					diffP1, diffP2, diffP3, diffQ1, diffQ2, diffQ3, Bs, batch_N, \
-					args.threads)
+					diffP1, diffP2, diffP3, diffQ1, diffQ2, diffQ3, Bs, args.threads)
 		else: # SQUAREM full updates
 			functions.squarem(G, P, Q, a, sumP1, sumP2, sumQA, sumQB, \
 				diffP1, diffP2, diffP3, diffQ1, diffQ2, diffQ3, args.threads)
 		
 		# SQUAREM stabilization step
-		em.updateP(G, P, Q, sumQA, sumQB, a, args.threads)
+		em.updateP(G, P, Q, sumQA, sumQB, a, batch_N, args.threads)
 		em.updateQ(Q, sumQA, sumQB, a)
 
 		# Convergence check

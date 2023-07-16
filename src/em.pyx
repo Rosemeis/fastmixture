@@ -35,7 +35,7 @@ cpdef void estimateFreq(unsigned char[:,::1] G, double[::1] f, int N, int t):
 
 # Update P and temp Q arrays
 cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
-		double[:,::1] sumQA, double[:,::1] sumQB, double[::1] a, int t):
+		double[:,::1] sumQA, double[:,::1] sumQB, double[::1] a, int C, int t):
 	cdef:
 		int M = G.shape[0]
 		int B = G.shape[1]
@@ -63,6 +63,34 @@ cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 				tmpQA[i0*K + k0] = 0.0
 				tmpQB[i0*K + k0] = 0.0
 		for j in prange(M):
+			# Extra P iterations
+			for c in range(C-1):
+				for k in range(K):
+					sumAG[k] = 0.0
+					sumBG[k] = 0.0
+				i = 0
+				for b in range(B):
+					byte = G[j,b]
+					for bytepart in range(4):
+						if recode[byte & mask] != 9:
+							g = <double>recode[byte & mask]
+							h = 0.0
+							for k in range(K):
+								h = h + Q[i,k]*P[j,k]
+							for k in range(K):
+								sumAG[k] = sumAG[k] + g*Q[i,k]/h
+								sumBG[k] = sumBG[k] + (2-g)*Q[i,k]/(1-h)
+						byte = byte >> 2
+						i = i + 1
+						if i == N:
+							break
+				for k in range(K):
+					sumAG[k] = sumAG[k]*P[j,k]
+					sumBG[k] = sumBG[k]*(1-P[j,k])
+					P[j,k] = sumAG[k]/(sumAG[k] + sumBG[k])
+					P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
+			
+			# Final P iteration
 			for k in range(K):
 				sumAG[k] = 0.0
 				sumBG[k] = 0.0
@@ -85,7 +113,6 @@ cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 					i = i + 1
 					if i == N:
 						break
-						
 			for k in range(K):
 				sumAG[k] = sumAG[k]*P[j,k]
 				sumBG[k] = sumBG[k]*(1-P[j,k])
