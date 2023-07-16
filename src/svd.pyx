@@ -8,13 +8,14 @@ from libc.math cimport sqrt
 # Load centered chunk of PLINK file for SVD (individual allele frequencies)
 cpdef void plinkChunk(unsigned char[:,::1] G, double[:,::1] X, double[::1] f, \
 		int M_b, int t):
-	cdef int M = X.shape[0]
-	cdef int N = X.shape[1]
-	cdef int B = G.shape[1]
-	cdef int i, j, b, bytepart
-	cdef unsigned char[4] recode = [0, 9, 1, 2]
-	cdef unsigned char mask = 3
-	cdef unsigned char byte
+	cdef:
+		int M = X.shape[0]
+		int N = X.shape[1]
+		int B = G.shape[1]
+		int i, j, b, bytepart
+		unsigned char[4] recode = [0, 9, 1, 2]
+		unsigned char mask = 3
+		unsigned char byte
 	with nogil:
 		for j in prange(M, num_threads=t):
 			i = 0
@@ -32,10 +33,11 @@ cpdef void plinkChunk(unsigned char[:,::1] G, double[:,::1] X, double[::1] f, \
 
 # Root-mean square error between two Q matrices
 cpdef double rmse(double[:,::1] A, double[:,::1] B):
-	cdef int N = A.shape[0]
-	cdef int K = A.shape[1]
-	cdef int i, k
-	cdef double res = 0.0
+	cdef:
+		int N = A.shape[0]
+		int K = A.shape[1]
+		int i, k
+		double res = 0.0
 	for i in range(N):
 		for k in range(K):
 			res += (A[i,k] - B[i,k])*(A[i,k] - B[i,k])

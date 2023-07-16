@@ -8,13 +8,14 @@ from libc.math cimport sqrt, log
 ##### fastmixture #####
 # Estimate minor allele frequencies and initial log-likelihood
 cpdef void estimateFreq(unsigned char[:,::1] G, double[::1] f, int N, int t):
-	cdef int M = G.shape[0]
-	cdef int B = G.shape[1]
-	cdef int i, j, k, x, y, b, bytepart
-	cdef unsigned char[4] recode = [0, 9, 1, 2]
-	cdef unsigned char mask = 3
-	cdef unsigned char byte
-	cdef double h, g, n
+	cdef:
+		int M = G.shape[0]
+		int B = G.shape[1]
+		int i, j, k, x, y, b, bytepart
+		unsigned char[4] recode = [0, 9, 1, 2]
+		unsigned char mask = 3
+		unsigned char byte
+		double h, g, n
 	with nogil:
 		for j in prange(M, num_threads=t):
 			i = 0
@@ -35,20 +36,21 @@ cpdef void estimateFreq(unsigned char[:,::1] G, double[::1] f, int N, int t):
 # Update P and temp Q arrays
 cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		double[:,::1] sumQA, double[:,::1] sumQB, double[::1] a, int t):
-	cdef int M = G.shape[0]
-	cdef int B = G.shape[1]
-	cdef int N = Q.shape[0]
-	cdef int K = P.shape[1]
-	cdef int i, j, k, x, y, i0, k0, b, bytepart
-	cdef unsigned char[4] recode = [0, 9, 1, 2]
-	cdef unsigned char mask = 3
-	cdef unsigned char byte
-	cdef double h, g
-	cdef double* tmpA
-	cdef double* sumAG
-	cdef double* sumBG
-	cdef double* tmpQA
-	cdef double* tmpQB
+	cdef:
+		int M = G.shape[0]
+		int B = G.shape[1]
+		int N = Q.shape[0]
+		int K = P.shape[1]
+		int i, j, k, x, y, i0, k0, b, bytepart
+		unsigned char[4] recode = [0, 9, 1, 2]
+		unsigned char mask = 3
+		unsigned char byte
+		double h, g
+		double* tmpA
+		double* sumAG
+		double* sumBG
+		double* tmpQA
+		double* tmpQB
 	with nogil, parallel(num_threads=t):
 		tmpA = <double*>PyMem_RawMalloc(sizeof(double)*N)
 		sumAG = <double*>PyMem_RawMalloc(sizeof(double)*K)
@@ -104,10 +106,11 @@ cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 # Update Q
 cpdef void updateQ(double[:,::1] Q, double[:,::1] sumQA, double[:,::1] sumQB, \
 		double[::1] a):
-	cdef int N = Q.shape[0]
-	cdef int K = Q.shape[1]
-	cdef int i, j, k
-	cdef double sumQ
+	cdef:
+		int N = Q.shape[0]
+		int K = Q.shape[1]
+		int i, j, k
+		double sumQ
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
@@ -125,19 +128,20 @@ cpdef void updateQ(double[:,::1] Q, double[:,::1] sumQA, double[:,::1] sumQB, \
 cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		double[:,::1] sumQA, double[:,::1] sumQB, double[:,::1] D, double[::1] a, \
 		int t):
-	cdef int M = G.shape[0]
-	cdef int B = G.shape[1]
-	cdef int N = Q.shape[0]
-	cdef int K = P.shape[1]
-	cdef int i, j, k, x, y, i0, k0, b, bytepart
-	cdef unsigned char[4] recode = [0, 9, 1, 2]
-	cdef unsigned char mask = 3
-	cdef unsigned char byte
-	cdef double h, g, P_old
-	cdef double* sumAG
-	cdef double* sumBG
-	cdef double* tmpQA
-	cdef double* tmpQB
+	cdef:
+		int M = G.shape[0]
+		int B = G.shape[1]
+		int N = Q.shape[0]
+		int K = P.shape[1]
+		int i, j, k, x, y, i0, k0, b, bytepart
+		unsigned char[4] recode = [0, 9, 1, 2]
+		unsigned char mask = 3
+		unsigned char byte
+		double h, g, P_old
+		double* sumAG
+		double* sumBG
+		double* tmpQA
+		double* tmpQB
 	with nogil, parallel(num_threads=t):
 		tmpA = <double*>PyMem_RawMalloc(sizeof(double)*N)
 		sumAG = <double*>PyMem_RawMalloc(sizeof(double)*K)
@@ -194,11 +198,12 @@ cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 # Update Q in acceleration
 cpdef void accelQ(double[:,::1] Q, double[:,::1] sumQA, double[:,::1] sumQB, \
 		double[:,::1] D, double[::1] a):
-	cdef int N = Q.shape[0]
-	cdef int K = Q.shape[1]
-	cdef int i, j, k
-	cdef double sumQ
-	cdef double* Q_tmp = <double*>PyMem_RawMalloc(sizeof(double)*K)
+	cdef:
+		int N = Q.shape[0]
+		int K = Q.shape[1]
+		int i, j, k
+		double sumQ
+		double* Q_tmp = <double*>PyMem_RawMalloc(sizeof(double)*K)
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
@@ -217,12 +222,13 @@ cpdef void accelQ(double[:,::1] Q, double[:,::1] sumQA, double[:,::1] sumQB, \
 
 # Compute step length for Q
 cpdef double alphaQ(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3):
-	cdef int N = D1.shape[0]
-	cdef int K = D1.shape[1]
-	cdef int i, k
-	cdef double a
-	cdef double sum1 = 0.0
-	cdef double sum2 = 0.0
+	cdef:
+		int N = D1.shape[0]
+		int K = D1.shape[1]
+		int i, k
+		double a
+		double sum1 = 0.0
+		double sum2 = 0.0
 	for i in range(N):
 		for k in range(K):
 			D3[i,k] = D2[i,k] - D1[i,k]
@@ -234,12 +240,13 @@ cpdef double alphaQ(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3):
 # Compute step length for P
 cpdef double alphaP(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3, \
 		double[::1] sP1, double[::1] sP2, int t):
-	cdef int M = D1.shape[0]
-	cdef int K = D1.shape[1]
-	cdef int i, j, k
-	cdef double a
-	cdef double sum1 = 0.0
-	cdef double sum2 = 0.0
+	cdef:
+		int M = D1.shape[0]
+		int K = D1.shape[1]
+		int i, j, k
+		double a
+		double sum1 = 0.0
+		double sum2 = 0.0
 	with nogil:
 		for j in prange(M, num_threads=t):
 			sP1[j] = 0.0
@@ -257,9 +264,10 @@ cpdef double alphaP(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3, \
 # Accelerated jump for P (SQUAREM)
 cpdef void accelUpdateP(double[:,::1] P, double[:,::1] D1, double[:,::1] D3, \
 		double alpha, int t):
-	cdef int M = P.shape[0]
-	cdef int K = P.shape[1]
-	cdef int j, k
+	cdef:
+		int M = P.shape[0]
+		int K = P.shape[1]
+		int j, k
 	with nogil:
 		for j in prange(M, num_threads=t):
 			for k in range(K):
@@ -269,10 +277,11 @@ cpdef void accelUpdateP(double[:,::1] P, double[:,::1] D1, double[:,::1] D3, \
 # Accelerated jump for Q (SQUAREM)
 cpdef void accelUpdateQ(double[:,::1] Q, double[:,::1] D1, double[:,::1] D3, \
 		double alpha):
-	cdef int N = Q.shape[0]
-	cdef int K = Q.shape[1]
-	cdef int i, k
-	cdef double sumQ
+	cdef:
+		int N = Q.shape[0]
+		int K = Q.shape[1]
+		int i, k
+		double sumQ
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
@@ -285,15 +294,16 @@ cpdef void accelUpdateQ(double[:,::1] Q, double[:,::1] D1, double[:,::1] D3, \
 # Log-likelihood
 cpdef loglike(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		double[::1] lkVec, int t):
-	cdef int M = G.shape[0]
-	cdef int B = G.shape[1]
-	cdef int N = Q.shape[0]
-	cdef int K = Q.shape[1]
-	cdef int i, j, k, b, bytepart
-	cdef unsigned char[4] recode = [0, 9, 1, 2]
-	cdef unsigned char mask = 3
-	cdef unsigned char byte
-	cdef double h, g
+	cdef:
+		int M = G.shape[0]
+		int B = G.shape[1]
+		int N = Q.shape[0]
+		int K = Q.shape[1]
+		int i, j, k, b, bytepart
+		unsigned char[4] recode = [0, 9, 1, 2]
+		unsigned char mask = 3
+		unsigned char byte
+		double h, g
 	with nogil:
 		for j in prange(M, num_threads=t):
 			lkVec[j] = 0.0
