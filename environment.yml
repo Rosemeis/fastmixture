@@ -1,7 +1,7 @@
 name: fastmixture
 channels:
-	- default
+  - default
 dependencies:
-	- python
-	-	cython
-	- numpy
+  - python
+  - cython
+  - numpy
