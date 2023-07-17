@@ -38,8 +38,8 @@ def randomizedSVD(G, f, N, K, B, power, seed, threads, verbose):
 	Uhat, S, V = np.linalg.svd(B, full_matrices=False)
 	U = np.dot(Q, Uhat)
 	del A, B, H, O, Q, R, Uhat, X
-	U = np.ascontiguousarray(U[:,:K])*np.sqrt(S[:K])
-	V = np.ascontiguousarray(V[:K,:].T)*np.sqrt(S[:K])
+	U = np.ascontiguousarray(U[:,:K])
+	V = np.ascontiguousarray(V[:K,:].T)
 	if verbose:
 		print("Performed Randomized SVD.")
 	return U, V
