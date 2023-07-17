@@ -104,7 +104,7 @@ cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 
 # Update Q
 cpdef void updateQ(double[:,::1] Q, double[:,::1] sumQA, double[:,::1] sumQB, \
-		double[::1] a):
+		double[::1] a) nogil:
 	cdef:
 		int N = Q.shape[0]
 		int K = Q.shape[1]
@@ -196,7 +196,7 @@ cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 
 # Update Q in acceleration
 cpdef void accelQ(double[:,::1] Q, double[:,::1] sumQA, double[:,::1] sumQB, \
-		double[:,::1] D, double[::1] a):
+		double[:,::1] D, double[::1] a) nogil:
 	cdef:
 		int N = Q.shape[0]
 		int K = Q.shape[1]
@@ -220,7 +220,7 @@ cpdef void accelQ(double[:,::1] Q, double[:,::1] sumQA, double[:,::1] sumQB, \
 	PyMem_RawFree(Q_tmp)
 
 # Compute step length for Q
-cpdef double alphaQ(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3):
+cpdef double alphaQ(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3) nogil:
 	cdef:
 		int N = D1.shape[0]
 		int K = D1.shape[1]
@@ -238,7 +238,7 @@ cpdef double alphaQ(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3):
 
 # Compute step length for P
 cpdef double alphaP(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3, \
-		double[::1] sP1, double[::1] sP2, int t):
+		double[::1] sP1, double[::1] sP2, int t) nogil:
 	cdef:
 		int M = D1.shape[0]
 		int K = D1.shape[1]
@@ -246,8 +246,7 @@ cpdef double alphaP(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3, \
 		double a
 		double sum1 = 0.0
 		double sum2 = 0.0
-	with nogil:
-		for j in prange(M, num_threads=t):
+	for j in prange(M, num_threads=t):
 			sP1[j] = 0.0
 			sP2[j] = 0.0
 			for k in range(K):
@@ -262,20 +261,19 @@ cpdef double alphaP(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3, \
 
 # Accelerated jump for P (SQUAREM)
 cpdef void accelUpdateP(double[:,::1] P, double[:,::1] D1, double[:,::1] D3, \
-		double alpha, int t):
+		double alpha, int t) nogil:
 	cdef:
 		int M = P.shape[0]
 		int K = P.shape[1]
 		int j, k
-	with nogil:
-		for j in prange(M, num_threads=t):
-			for k in range(K):
-				P[j,k] = P[j,k] + 2.0*alpha*D1[j,k] + alpha*alpha*D3[j,k]
-				P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
+	for j in prange(M, num_threads=t):
+		for k in range(K):
+			P[j,k] = P[j,k] + 2.0*alpha*D1[j,k] + alpha*alpha*D3[j,k]
+			P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
 
 # Accelerated jump for Q (SQUAREM)
 cpdef void accelUpdateQ(double[:,::1] Q, double[:,::1] D1, double[:,::1] D3, \
-		double alpha):
+		double alpha) nogil:
 	cdef:
 		int N = Q.shape[0]
 		int K = Q.shape[1]
@@ -291,7 +289,7 @@ cpdef void accelUpdateQ(double[:,::1] Q, double[:,::1] D1, double[:,::1] D3, \
 			Q[i,k] /= sumQ
 
 # Log-likelihood
-cpdef loglike(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
+cpdef void loglike(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		double[::1] lkVec, int t):
 	cdef:
 		int M = G.shape[0]

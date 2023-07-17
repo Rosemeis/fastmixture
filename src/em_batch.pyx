@@ -149,7 +149,7 @@ cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 
 # Compute step length for P
 cpdef double alphaP(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3, \
-		double[::1] sP1, double[::1] sP2, long[::1] idx, int t):
+		double[::1] sP1, double[::1] sP2, long[::1] idx, int t) nogil:
 	cdef:
 		int M = idx.shape[0]
 		int K = D1.shape[1]
@@ -157,14 +157,13 @@ cpdef double alphaP(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3, \
 		double a
 		double sum1 = 0.0
 		double sum2 = 0.0
-	with nogil:
-		for j in prange(M, num_threads=t):
-			sP1[j] = 0.0
-			sP2[j] = 0.0
-			for k in range(K):
-				D3[idx[j],k] = D2[idx[j],k] - D1[idx[j],k]
-				sP1[j] += D1[idx[j],k]*D1[idx[j],k]
-				sP2[j] += D3[idx[j],k]*D3[idx[j],k]
+	for j in prange(M, num_threads=t):
+		sP1[j] = 0.0
+		sP2[j] = 0.0
+		for k in range(K):
+			D3[idx[j],k] = D2[idx[j],k] - D1[idx[j],k]
+			sP1[j] += D1[idx[j],k]*D1[idx[j],k]
+			sP2[j] += D3[idx[j],k]*D3[idx[j],k]
 	for k in range(M):
 		sum1 += sP1[k]
 		sum2 += sP2[k]
@@ -173,14 +172,13 @@ cpdef double alphaP(double[:,::1] D1, double[:,::1] D2, double[:,::1] D3, \
 
 # Accelerated jump for P (SQUAREM)
 cpdef void accelUpdateP(double[:,::1] P, double[:,::1] D1, double[:,::1] D3, \
-		double alpha, long[::1] idx, int t):
+		double alpha, long[::1] idx, int t) nogil:
 	cdef:
 		int M = idx.shape[0]
 		int K = P.shape[1]
 		int j, k
-	with nogil:
-		for j in prange(M, num_threads=t):
-			for k in range(K):
-				P[idx[j],k] = P[idx[j],k] + 2.0*alpha*D1[idx[j],k] + \
-					alpha*alpha*D3[idx[j],k]
-				P[idx[j],k] = min(max(P[idx[j],k], 1e-5), 1-(1e-5))
+	for j in prange(M, num_threads=t):
+		for k in range(K):
+			P[idx[j],k] = P[idx[j],k] + 2.0*alpha*D1[idx[j],k] + \
+				alpha*alpha*D3[idx[j],k]
+			P[idx[j],k] = min(max(P[idx[j],k], 1e-5), 1-(1e-5))
