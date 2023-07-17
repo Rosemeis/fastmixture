@@ -36,8 +36,8 @@ os.environ["OPENBLAS_NUM_THREADS"] = str(args.threads)
 # Import numerical libraries
 import numpy as np
 from math import ceil
-from fastmixture import em
-from fastmixture import functions
+from src import em
+from src import functions
 
 ### Read data
 print("Reading data...", end="\r")
