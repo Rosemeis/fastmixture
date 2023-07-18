@@ -38,8 +38,8 @@ def randomizedSVD(G, f, N, K, B, power, seed, threads, verbose):
 	Uhat, S, V = np.linalg.svd(B, full_matrices=False)
 	U = np.dot(Q, Uhat)
 	del A, B, H, O, Q, R, Uhat, X
-	U = np.ascontiguousarray(U[:,:K])*np.sqrt(S[:K])
-	V = np.ascontiguousarray(V[:K,:].T)*np.sqrt(S[:K])
+	U = np.ascontiguousarray(U[:,:K])*S[:K]
+	V = np.ascontiguousarray(V[:K,:].T)
 	if verbose:
 		print("Performed Randomized SVD.")
 	return U, V
@@ -53,14 +53,15 @@ def projectSimplex(Q):
 	T = C[np.arange(Q.shape[0]), R-1]/R
 	return np.clip(Q - T.reshape(-1,1), a_min=1e-5, a_max=1-(1e-5))
 
-### K-means clustering and setup Q and P
+### Alternating least square (ALS) for initializing Q and F
 def extractFactor(U, V, f, K, iter, tole, seed, verbose):
 	rng = np.random.default_rng(seed)
 	M = U.shape[0]
 	N = V.shape[0]
 	P = rng.random(size=(M, K)).clip(min=1e-5, max=1-(1e-5))
-	Q = rng.random(size=(N, K)).clip(min=1e-5, max=1-(1e-5))
-	Q /= np.sum(Q, axis=1, keepdims=True)
+	I = np.dot(P, np.linalg.pinv(np.dot(P.T, P)))
+	Q = 0.5*np.dot(V, np.dot(U.T, I)) + np.sum(I*f.reshape(-1,1), axis=0)
+	Q = projectSimplex(Q)
 
 	# Perform ALS iterations
 	for it in range(iter):

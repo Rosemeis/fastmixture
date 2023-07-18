@@ -36,6 +36,8 @@ parser.add_argument("--num_batches", metavar="INT", type=int, default=16,
 	help="Number of mini-batches (16)")
 parser.add_argument("--power", metavar="INT", type=int, default=7,
 	help="Number of power iterations in randomized SVD (7)")
+parser.add_argument("--svd_batches", metavar="INT", type=int, default=64,
+	help="Number of batches for SVD (64)")
 parser.add_argument("--als_iter", metavar="INT", type=int, default=500,
 	help="Maximum number of iterations in NMF (500)")
 parser.add_argument("--als_tole", metavar="FLOAT", type=float, default=1e-5,
@@ -123,7 +125,7 @@ def main():
 	# Initialize P and Q matrices from SVD and ALS
 	ts = time()
 	print("Initializing P and Q.", end="\r")
-	U, V = functions.randomizedSVD(G, f, N, args.K, args.num_batches, args.power, \
+	U, V = functions.randomizedSVD(G, f, N, args.K-1, args.svd_batches, args.power, \
 		args.seed, args.threads, args.verbose)
 	P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, args.als_tole, \
 		args.seed, args.verbose)
