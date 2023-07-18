@@ -58,8 +58,10 @@ def extractFactor(U, V, f, K, iter, tole, seed, verbose):
 	rng = np.random.default_rng(seed)
 	M = U.shape[0]
 	N = V.shape[0]
-	Q = rng.random(size=(N, K)).clip(min=1e-5, max=1-(1e-5))
-	Q /= np.sum(Q, axis=1, keepdims=True)
+	P = rng.random(size=(M, K)).clip(min=1e-5, max=1-(1e-5))
+	I = np.dot(P, np.linalg.pinv(np.dot(P.T, P)))
+	Q = 0.5*np.dot(V, np.dot(U.T, I)) + np.sum(I*f.reshape(-1,1), axis=0)
+	Q = projectSimplex(Q)
 
 	# Perform ALS iterations
 	for it in range(iter):
