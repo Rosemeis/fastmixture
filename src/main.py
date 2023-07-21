@@ -125,7 +125,7 @@ def main():
 	# Initialize P and Q matrices from SVD and ALS
 	ts = time()
 	print("Initializing P and Q.", end="\r")
-	U, V = functions.randomizedSVD(G, f, N, args.K-1, args.svd_batches, args.power, \
+	U, V = functions.randomizedSVD(G, f, N, args.K, args.svd_batches, args.power, \
 		args.seed, args.threads, args.verbose)
 	P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, args.als_tole, \
 		args.seed, args.verbose)
