@@ -38,8 +38,8 @@ parser.add_argument("--power", metavar="INT", type=int, default=7,
 	help="Number of power iterations in randomized SVD (7)")
 parser.add_argument("--svd_batches", metavar="INT", type=int, default=64,
 	help="Number of batches for SVD (64)")
-parser.add_argument("--als_iter", metavar="INT", type=int, default=500,
-	help="Maximum number of iterations in ALS (500)")
+parser.add_argument("--als_iter", metavar="INT", type=int, default=1000,
+	help="Maximum number of iterations in ALS (1000)")
 parser.add_argument("--als_tole", metavar="FLOAT", type=float, default=1e-5,
 	help="Tolerance for RMSE of P between iterations (1e-5)")
 parser.add_argument("--no_freqs", action="store_true",
