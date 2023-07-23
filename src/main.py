@@ -34,8 +34,8 @@ parser.add_argument("-c", "--check", metavar="INT", type=int, default=10,
 	help="Iteration to estimate log-likelihood for convergence check (10)")
 parser.add_argument("--num_batches", metavar="INT", type=int, default=16,
 	help="Number of mini-batches (16)")
-parser.add_argument("--power", metavar="INT", type=int, default=7,
-	help="Number of power iterations in randomized SVD (7)")
+parser.add_argument("--power", metavar="INT", type=int, default=11,
+	help="Number of power iterations in randomized SVD (11)")
 parser.add_argument("--svd_batches", metavar="INT", type=int, default=64,
 	help="Number of batches for SVD (64)")
 parser.add_argument("--als_iter", metavar="INT", type=int, default=1000,
