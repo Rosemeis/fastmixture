@@ -99,7 +99,6 @@ def main():
 	from src import em
 	from src import em_batch
 	from src import functions
-	from src import svd
 
 	### Read data
 	print("Reading data...", end="\r")
@@ -178,7 +177,6 @@ def main():
 				functions.squaremBatch(G, P, Q, a, sumP1, sumP2, sumQA, sumQB, \
 					diffP1, diffP2, diffP3, diffQ1, diffQ2, diffQ3, Bs, args.threads)
 		else: # SQUAREM full updates
-			Q0 = np.copy(Q)
 			functions.squarem(G, P, Q, a, sumP1, sumP2, sumQA, sumQB, \
 				diffP1, diffP2, diffP3, diffQ1, diffQ2, diffQ3, args.threads)
 		
@@ -186,12 +184,12 @@ def main():
 		em.updateP(G, P, Q, sumQA, sumQB, a, args.threads)
 		em.updateQ(Q, sumQA, sumQB, a)
 
-		# Log-likelihood convergence check
+		# Convergence check
 		if it % args.check == 0:
 			em.loglike(G, P, Q, lkVec, args.threads)
 			lkCur = np.sum(lkVec)
 			print("Iteration {},\tLog-like: {}\t({} seconds)".format(
-				it, round(lkCur, 1), round(time()-ts, 1)), flush=True)
+				it, round(lkCur, 1),round(time()-ts, 1)), flush=True)
 			if batch:
 				if (lkCur < lkPre) or (abs(lkCur - lkPre) < args.tole):
 					batch_N = batch_N // 2
@@ -208,19 +206,6 @@ def main():
 					break
 			lkPre = lkCur
 			ts = time()
-		
-		# RMSE convergence check
-		if not batch:
-			rmseQ = svd.rmse(Q, Q0)
-			if rmseQ < args.q_tole:
-				print("Iteration {},\tQ-RMSE: {}\t({} seconds)".format(
-					it, round(rmseQ, 10), round(time()-ts, 1)), flush=True)
-				print("Converged!")
-				em.loglike(G, P, Q, lkVec, args.threads)
-				lkCur = np.sum(lkVec)
-				print(f"Final log-likelihood: {round(lkCur, 1)}")
-				converged = True
-				break			
 
 	### Save estimates and write output to log-file
 	np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.Q", Q, fmt="%.6f")
