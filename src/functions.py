@@ -16,7 +16,7 @@ def randomizedSVD(G, f, N, K, B, power, seed, threads, verbose):
 	rng = np.random.default_rng(seed)
 	M = G.shape[0]
 	M_batch = M//B
-	L = K + 10
+	L = K + 20
 	O = rng.standard_normal(size=(N, L))
 	A = np.zeros((M, L))
 	H = np.zeros((N, L))
