@@ -45,7 +45,7 @@ parser.add_argument("--als_tole", metavar="FLOAT", type=float, default=1e-5,
 parser.add_argument("--no_freqs", action="store_true",
 	help="Do not save P-matrix")
 parser.add_argument("--als_save", action="store_true",
-	help="DEBUG: Save initialized factor matrices")
+	help="Save initialized factor matrices from ALS")
 parser.add_argument("--no_batch", action="store_true",
 	help="DEBUG: Turn off mini-batch updates")
 parser.add_argument("--verbose", action="store_true",
