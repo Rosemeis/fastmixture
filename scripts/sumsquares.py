@@ -74,4 +74,4 @@ P.clip(min=args.bound, max=1-(args.bound), out=P)
 ### Estimate least square estimate
 svd.sumSquare(G, P, Q, lsVec, args.threads)
 ls = np.sum(lsVec)
-print(f"Sum-of-squares: {round(ls,1)}", flush=True)
+print(f"{round(ls,1)}", flush=True)

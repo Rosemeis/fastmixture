@@ -74,4 +74,4 @@ P.clip(min=args.bound, max=1-(args.bound), out=P)
 ### Estimate log-likelihood
 em.loglike(G, P, Q, lkVec, args.threads)
 lk = np.sum(lkVec)
-print(f"Log-likeihood: {round(lk,1)}", flush=True)
+print(f"{round(lk,1)}", flush=True)
