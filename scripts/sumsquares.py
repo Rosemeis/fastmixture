@@ -1,5 +1,5 @@
 """
-Generate log-likelihoods for ancestry estimation.
+Generate sum-of-squares estimates for ancestry estimation.
 """
 
 __author__ = "Jonas Meisner"
@@ -38,7 +38,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = str(args.threads)
 # Import numerical libraries
 import numpy as np
 from math import ceil
-from src import em
+from src import svd
 from src import functions
 
 ### Read data
@@ -54,7 +54,7 @@ G.shape = (M, B)
 
 ### Initalize parameters
 f = np.zeros(M)
-lkVec = np.zeros(M)
+lsVec = np.zeros(M)
 
 # Load Q and P file
 Q = np.loadtxt(f"{args.qfile}", dtype=float)
@@ -71,7 +71,7 @@ Q.clip(min=args.bound, max=1-(args.bound), out=Q)
 Q /= np.sum(Q, axis=1, keepdims=True)
 P.clip(min=args.bound, max=1-(args.bound), out=P)
 
-### Estimate log-likelihood
-em.loglike(G, P, Q, lkVec, args.threads)
-lk = np.sum(lkVec)
-print(f"Log-likeihood: {round(lk,1)}", flush=True)
+### Estimate least square estimate
+svd.sumSquare(G, P, Q, lsVec, args.threads)
+ls = np.sum(lsVec)
+print(f"Sum-of-squares: {round(ls,1)}", flush=True)
