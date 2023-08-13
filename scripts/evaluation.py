@@ -1,5 +1,5 @@
 """
-Generate log-likelihoods for ancestry estimation.
+Generate evaluation estimates for ancestry estimation.
 """
 
 __author__ = "Jonas Meisner"
@@ -22,12 +22,18 @@ parser.add_argument("--bound", type=float, default=1e-5,
 	help="Edge bound for 0 and 1")
 parser.add_argument("--scope", action="store_true",
 	help="Indicator for SCOPE output files")
+parser.add_argument("--loglike", action="store_true",
+	help="Log-likelihood estimates")
+parser.add_argument("--sumsquares", action="store_true",
+	help="Sum-of-squares estimates")
 
 # Check input
 args = parser.parse_args()
 assert args.bfile is not None, "No input data (--bfile)!"
 assert args.qfile is not None, "No ancestry proportions (--qfile)!"
 assert args.pfile is not None, "No ancestral frequencies (--pfile)!"
+assert (args.loglike or args.sumsquares), "Provide estimate for evaluation " + \
+	"(--loglike or --sumsquares)"
 
 # Control threads of external numerical libraries
 os.environ["MKL_NUM_THREADS"] = str(args.threads)
@@ -39,6 +45,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = str(args.threads)
 import numpy as np
 from math import ceil
 from src import em
+from src import svd
 from src import functions
 
 ### Read data
@@ -54,7 +61,7 @@ G.shape = (M, B)
 
 ### Initalize parameters
 f = np.zeros(M)
-lkVec = np.zeros(M)
+lVec = np.zeros(M)
 
 # Load Q and P file
 Q = np.loadtxt(f"{args.qfile}", dtype=float)
@@ -71,7 +78,10 @@ Q.clip(min=args.bound, max=1-(args.bound), out=Q)
 Q /= np.sum(Q, axis=1, keepdims=True)
 P.clip(min=args.bound, max=1-(args.bound), out=P)
 
-### Estimate log-likelihood
-em.loglike(G, P, Q, lkVec, args.threads)
-lk = np.sum(lkVec)
-print(f"{round(lk,1)}", flush=True)
+### Evaluation
+if args.loglike: # Log-likelihood
+	em.loglike(G, P, Q, lVec, args.threads)
+else: # Sum-of-squares
+	svd.sumSquare(G, P, Q, lVec, args.threads)
+l = np.sum(lVec)
+print(f"{round(l,1)}", flush=True)
