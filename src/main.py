@@ -206,15 +206,16 @@ def main():
 					break
 			lkPre = lkCur
 			ts = time()
+	# Print elapsed time for estimation
+	t_tot = time()-start
+	t_min = int(t_tot//60)
+	t_sec = int(t_tot - t_min*60)
+	print(f"Total elapsed time: {t_min}m{t_sec}s")
 
 	### Save estimates and write output to log-file
 	np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.Q", Q, fmt="%.6f")
 	if not args.no_freqs:
 		np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.P", P, fmt="%.6f")
-	t_tot = time()-start
-	t_min = int(t_tot//60)
-	t_sec = int(t_tot - t_min*60)
-	print(f"Total elapsed time: {t_min}m{t_sec}s")
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "a") as log:
 		log.write(f"\nFinal log-likelihood: {round(lkCur,1)}\n")
 		if converged:
