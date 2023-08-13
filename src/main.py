@@ -206,6 +206,7 @@ def main():
 					break
 			lkPre = lkCur
 			ts = time()
+	
 	# Print elapsed time for estimation
 	t_tot = time()-start
 	t_min = int(t_tot//60)
