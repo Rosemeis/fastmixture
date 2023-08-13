@@ -81,7 +81,7 @@ def extractFactor(U, V, f, K, iterations, tole, seed, verbose):
 
 		# Check convergence
 		if verbose:
-			print(f"ALS ({it}): {round(em.rmse(Q, Q0), 8)}")
+			print(f"ALS ({it}): {round(svd.rmsd(Q, Q0), 8)}")
 		if svd.rmsd(Q, Q0) < tole:
 			break
 	Q /= np.sum(Q, axis=1, keepdims=True)
