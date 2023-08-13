@@ -7,7 +7,7 @@ from libc.math cimport sqrt, log
 
 ##### fastmixture #####
 # Estimate minor allele frequencies and initial log-likelihood
-cpdef void estimateFreq(unsigned char[:,::1] G, double[::1] f, int N, int t):
+cpdef void estimateFreq(unsigned char[:,::1] G, double[::1] f, int N, int t) nogil:
 	cdef:
 		int M = G.shape[0]
 		int B = G.shape[1]
@@ -16,22 +16,21 @@ cpdef void estimateFreq(unsigned char[:,::1] G, double[::1] f, int N, int t):
 		unsigned char mask = 3
 		unsigned char byte
 		double h, g, n
-	with nogil:
-		for j in prange(M, num_threads=t):
-			i = 0
-			n = 0.0
-			for b in range(B):
-				byte = G[j,b]
-				for bytepart in range(4):
-					if recode[byte & mask] != 9:
-						g = <double>recode[byte & mask]
-						n = n + 1.0
-						f[j] += g
-					byte = byte >> 2
-					i = i + 1
-					if i == N:
-						break
-			f[j] /= (2.0*n)
+	for j in prange(M, num_threads=t):
+		i = 0
+		n = 0.0
+		for b in range(B):
+			byte = G[j,b]
+			for bytepart in range(4):
+				if recode[byte & mask] != 9:
+					g = <double>recode[byte & mask]
+					n = n + 1.0
+					f[j] += g
+				byte = byte >> 2
+				i = i + 1
+				if i == N:
+					break
+		f[j] /= (2.0*n)
 
 # Update P and temp Q arrays
 cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
@@ -301,20 +300,19 @@ cpdef void loglike(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		unsigned char mask = 3
 		unsigned char byte
 		double h, g
-	with nogil:
-		for j in prange(M, num_threads=t):
-			lkVec[j] = 0.0
-			i = 0
-			for b in range(B):
-				byte = G[j,b]
-				for bytepart in range(4):
-					if recode[byte & mask] != 9:
-						g = <double>recode[byte & mask]
-						h = 0.0
-						for k in range(K):
-							h = h + Q[i,k]*P[j,k]
-						lkVec[j] += g*log(h) + (2-g)*log(1-h)
-					byte = byte >> 2
-					i = i + 1
-					if i == N:
-						break
+	for j in prange(M, num_threads=t):
+		lkVec[j] = 0.0
+		i = 0
+		for b in range(B):
+			byte = G[j,b]
+			for bytepart in range(4):
+				if recode[byte & mask] != 9:
+					g = <double>recode[byte & mask]
+					h = 0.0
+					for k in range(K):
+						h = h + Q[i,k]*P[j,k]
+					lkVec[j] += g*log(h) + (2-g)*log(1-h)
+				byte = byte >> 2
+				i = i + 1
+				if i == N:
+					break

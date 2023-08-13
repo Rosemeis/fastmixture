@@ -60,7 +60,7 @@ cpdef void map2domain(double[:,::1] Q) nogil:
 
 # Sum-of-squares used for evaluation
 cpdef void sumSquare(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
-		double[::1] lsVec, int t):
+		double[::1] lsVec, int t) nogil:
 	cdef:
 		int M = G.shape[0]
 		int B = G.shape[1]
@@ -71,20 +71,19 @@ cpdef void sumSquare(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		unsigned char mask = 3
 		unsigned char byte
 		double h, g
-	with nogil:
-		for j in prange(M, num_threads=t):
-			lsVec[j] = 0.0
-			i = 0
-			for b in range(B):
-				byte = G[j,b]
-				for bytepart in range(4):
-					if recode[byte & mask] != 9:
-						g = <double>recode[byte & mask]
-						h = 0.0
-						for k in range(K):
-							h = h + Q[i,k]*P[j,k]
-						lsVec[j] += (g - 2*h)*(g - 2*h)
-					byte = byte >> 2
-					i = i + 1
-					if i == N:
-						break
+	for j in prange(M, num_threads=t):
+		lsVec[j] = 0.0
+		i = 0
+		for b in range(B):
+			byte = G[j,b]
+			for bytepart in range(4):
+				if recode[byte & mask] != 9:
+					g = <double>recode[byte & mask]
+					h = 0.0
+					for k in range(K):
+						h = h + Q[i,k]*P[j,k]
+					lsVec[j] += (g - 2*h)*(g - 2*h)
+				byte = byte >> 2
+				i = i + 1
+				if i == N:
+					break

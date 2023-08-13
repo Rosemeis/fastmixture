@@ -192,7 +192,7 @@ def main():
 				it, round(lkCur, 1),round(time()-ts, 1)), flush=True)
 			if batch:
 				if (lkCur < lkPre) or (abs(lkCur - lkPre) < args.tole):
-					batch_N = batch_N // 2
+					batch_N = batch_N//2
 					if batch_N > 1:
 						print(f"Using {batch_N} mini-batches.")
 					else:
