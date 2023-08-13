@@ -61,11 +61,13 @@ def extractFactor(U, V, f, K, iterations, tole, seed, verbose):
 	P = rng.random(size=(M, K)).clip(min=1e-5, max=1-(1e-5))
 	I = np.dot(P, np.linalg.pinv(np.dot(P.T, P)))
 	Q = 0.5*np.dot(V, np.dot(U.T, I)) + np.sum(I*f.reshape(-1,1), axis=0)
-	svd.map2domain(Q)
+	Q = projectSimplex(Q)
 	Q0 = np.copy(Q)
 
 	# Perform ALS iterations
 	for it in range(iterations):
+		np.copyto(Q0, Q, casting="no")
+
 		# Update P
 		I = np.dot(Q, np.linalg.pinv(np.dot(Q.T, Q)))
 		P = 0.5*np.dot(U, np.dot(V.T, I)) + np.outer(f, np.sum(I, axis=0))
@@ -74,14 +76,15 @@ def extractFactor(U, V, f, K, iterations, tole, seed, verbose):
 		# Update Q
 		I = np.dot(P, np.linalg.pinv(np.dot(P.T, P)))
 		Q = 0.5*np.dot(V, np.dot(U.T, I)) + np.sum(I*f.reshape(-1,1), axis=0)
-		svd.map2domain(Q)
+		Q.clip(min=1e-5, max=1-(1e-5), out=Q)
+		Q = projectSimplex(Q)
 
 		# Check convergence
 		if verbose:
-			print(f"ALS ({it}): {round(svd.rmsd(Q, Q0), 8)}")
+			print(f"ALS ({it}): {round(em.rmse(Q, Q0), 8)}")
 		if svd.rmsd(Q, Q0) < tole:
 			break
-		np.copyto(Q0, Q)
+	Q /= np.sum(Q, axis=1, keepdims=True)
 	return P, Q
 
 ### SQUAREM
