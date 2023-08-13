@@ -290,7 +290,7 @@ cpdef void accelUpdateQ(double[:,::1] Q, double[:,::1] D1, double[:,::1] D3, \
 
 # Log-likelihood
 cpdef void loglike(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
-		double[::1] lkVec, int t):
+		double[::1] lkVec, int t) nogil:
 	cdef:
 		int M = G.shape[0]
 		int B = G.shape[1]

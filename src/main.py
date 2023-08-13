@@ -15,7 +15,7 @@ from time import time
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
 parser.add_argument("--version", action="version",
-	version="%(prog)s v0.1")
+	version="%(prog)s v0.2")
 parser.add_argument("-b", "--bfile", metavar="PLINK",
 	help="Prefix for PLINK files (.bed, .bim, .fam)")
 parser.add_argument("-k", "--K", metavar="INT", type=int,
@@ -28,8 +28,8 @@ parser.add_argument("-s", "--seed", metavar="INT", type=int, default=42,
 	help="Set random seed (42)")
 parser.add_argument("-i", "--iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations (1000)")
-parser.add_argument("-e", "--tole", metavar="FLOAT", type=float, default=0.5,
-	help="Tolerance in log-likelihood units between c-th iterations (0.5)")
+parser.add_argument("-e", "--tole", metavar="FLOAT", type=float, default=1.0,
+	help="Tolerance in log-likelihood units between c-th iterations (1.0)")
 parser.add_argument("-c", "--check", metavar="INT", type=int, default=10,
 	help="Iteration to estimate log-likelihood for convergence check (10)")
 parser.add_argument("--num_batches", metavar="INT", type=int, default=16,
@@ -58,7 +58,7 @@ def main():
 	if len(sys.argv) < 2:
 		parser.print_help()
 		sys.exit()
-	print(f"fastmixture v0.1")
+	print(f"fastmixture v0.2")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
 	print("Parameters: K={}, seed={}, num_batches={}, threads={}\n".format(args.K, \
 		args.seed, args.num_batches, args.threads))
@@ -130,7 +130,7 @@ def main():
 	P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, args.als_tole, \
 		args.seed, args.verbose)
 	print(f"Extracted factor matrices ({round(time()-ts,1)} seconds).")
-	del U, V
+	del f, U, V
 
 	# Optional save of initial factor matrices (debug feature)
 	if args.als_save:
@@ -145,7 +145,7 @@ def main():
 		batch = True
 		batch_N = args.num_batches
 
-	# Estimate allele frequencies and initial log-likelihood
+	# Estimate initial log-likelihood
 	ts = time()
 	em.loglike(G, P, Q, lkVec, args.threads)
 	lkPre = np.sum(lkVec)
@@ -184,7 +184,7 @@ def main():
 		em.updateP(G, P, Q, sumQA, sumQB, a, args.threads)
 		em.updateQ(Q, sumQA, sumQB, a)
 
-		# Convergence check
+		# Log-likelihood convergence check
 		if it % args.check == 0:
 			em.loglike(G, P, Q, lkVec, args.threads)
 			lkCur = np.sum(lkVec)
@@ -217,7 +217,9 @@ def main():
 	print(f"Total elapsed time: {t_min}m{t_sec}s")
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "a") as log:
 		log.write(f"\nFinal log-likelihood: {round(lkCur,1)}\n")
-		if not converged:
+		if converged:
+			log.write(f"Converged in {it} iterations.\n")
+		else:
 			log.write("EM algorithm did not converge!\n")
 		log.write(f"Total elapsed time: {t_min}m{t_sec}s\n")
 		log.write(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q\n")

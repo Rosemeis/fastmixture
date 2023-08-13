@@ -7,7 +7,7 @@ from libc.math cimport sqrt
 ##### Randomized SVD - PCAone method #####
 # Load centered chunk of PLINK file for SVD (individual allele frequencies)
 cpdef void plinkChunk(unsigned char[:,::1] G, double[:,::1] X, double[::1] f, \
-		int M_b, int t):
+		int M_b, int t) nogil:
 	cdef:
 		int M = X.shape[0]
 		int N = X.shape[1]
@@ -32,7 +32,7 @@ cpdef void plinkChunk(unsigned char[:,::1] G, double[:,::1] X, double[::1] f, \
 						break
 
 # Root-mean square error between two Q matrices
-cpdef double rmse(double[:,::1] A, double[:,::1] B):
+cpdef double rmsd(double[:,::1] A, double[:,::1] B) nogil:
 	cdef:
 		int N = A.shape[0]
 		int K = A.shape[1]
@@ -42,6 +42,21 @@ cpdef double rmse(double[:,::1] A, double[:,::1] B):
 		for k in range(K):
 			res += (A[i,k] - B[i,k])*(A[i,k] - B[i,k])
 	return sqrt(res/<double>(N*K))
+
+# Map2domain
+cpdef void map2domain(double[:,::1] Q) nogil:
+	cdef:
+		int N = Q.shape[0]
+		int K = Q.shape[1]
+		int i, k
+		double sumQ
+	for i in range(N):
+		sumQ = 0.0
+		for k in range(K):
+			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
+			sumQ = sumQ + Q[i,k]
+		for k in range(K):
+			Q[i,k] /= sumQ
 
 # Sum-of-squares used for evaluation
 cpdef void sumSquare(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
