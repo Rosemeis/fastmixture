@@ -73,7 +73,7 @@ def main():
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "num_batches"]
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
-		log.write("fastmixture v0.1\n")
+		log.write("fastmixture v0.2\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
 		log.write(f"Directory: {os.getcwd()}\n")
 		log.write("Options:\n")
