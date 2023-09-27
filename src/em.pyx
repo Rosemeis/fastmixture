@@ -3,7 +3,7 @@ import numpy as np
 cimport numpy as np
 from cpython.mem cimport PyMem_RawMalloc, PyMem_RawFree
 from cython.parallel import prange, parallel
-from libc.math cimport fmax, fmin, log, sqrt
+from libc.math cimport log, sqrt
 
 ##### fastmixture #####
 # Estimate minor allele frequencies and initial log-likelihood
@@ -88,7 +88,7 @@ cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 				sumAG[k] = sumAG[k]*P[j,k]
 				sumBG[k] = sumBG[k]*(1-P[j,k])
 				P[j,k] = sumAG[k]/(sumAG[k] + sumBG[k])
-				P[j,k] = fmin(fmax(P[j,k], 1e-5), 1-(1e-5))
+				P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
 		with gil:
 			for x in range(N):
 				a[x] += tmpA[x]
@@ -113,7 +113,7 @@ cpdef void updateQ(double[:,::1] Q, double[:,::1] sumQA, double[:,::1] sumQB, \
 		sumQ = 0.0
 		for k in range(K):
 			Q[i,k] = (sumQA[i,k]*Q[i,k] + sumQB[i,k]*Q[i,k])/(2.0*a[i])
-			Q[i,k] = fmin(fmax(Q[i,k], 1e-5), 1-(1e-5))
+			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
 			sumQA[i,k] = 0.0
 			sumQB[i,k] = 0.0
 			sumQ = sumQ + Q[i,k]
@@ -179,7 +179,7 @@ cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 				sumAG[k] = sumAG[k]*P[j,k]
 				sumBG[k] = sumBG[k]*(1 - P[j,k])
 				P[j,k] = sumAG[k]/(sumAG[k] + sumBG[k])
-				P[j,k] = fmin(fmax(P[j,k], 1e-5), 1-(1e-5))
+				P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
 				D[j,k] = P[j,k] - P_old
 		with gil:
 			for x in range(N):
@@ -207,7 +207,7 @@ cpdef void accelQ(double[:,::1] Q, double[:,::1] sumQA, double[:,::1] sumQB, \
 		for k in range(K):
 			Q_tmp[k] = Q[i,k]
 			Q[i,k] = (sumQA[i,k]*Q[i,k] + sumQB[i,k]*Q[i,k])/(2.0*a[i])
-			Q[i,k] = fmin(fmax(Q[i,k], 1e-5), 1-(1e-5))
+			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
 			sumQA[i,k] = 0.0
 			sumQB[i,k] = 0.0
 			sumQ = sumQ + Q[i,k]
@@ -268,7 +268,7 @@ cpdef void accelUpdateP(double[:,::1] P, double[:,::1] D1, double[:,::1] D3, \
 	for j in prange(M, num_threads=t):
 		for k in range(K):
 			P[j,k] = P[j,k] + 2.0*alpha*D1[j,k] + alpha*alpha*D3[j,k]
-			P[j,k] = fmin(fmax(P[j,k], 1e-5), 1-(1e-5))
+			P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
 
 # Accelerated jump for Q (SQUAREM)
 cpdef void accelUpdateQ(double[:,::1] Q, double[:,::1] D1, double[:,::1] D3, \
@@ -282,7 +282,7 @@ cpdef void accelUpdateQ(double[:,::1] Q, double[:,::1] D1, double[:,::1] D3, \
 		sumQ = 0.0
 		for k in range(K):
 			Q[i,k] = Q[i,k] + 2.0*alpha*D1[i,k] + alpha*alpha*D3[i,k]
-			Q[i,k] = fmin(fmax(Q[i,k], 1e-5), 1-(1e-5))
+			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
 			sumQ = sumQ + Q[i,k]
 		for k in range(K):
 			Q[i,k] /= sumQ

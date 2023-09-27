@@ -58,10 +58,11 @@ def main():
 	if len(sys.argv) < 2:
 		parser.print_help()
 		sys.exit()
+	print("-------------------------------------------------")
 	print(f"fastmixture v0.3")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
-	print("Parameters: K={}, seed={}, num_batches={}, threads={}\n".format(args.K, \
-		args.seed, args.num_batches, args.threads))
+	print(f"Parameters: K={args.K}, seed={args.seed}, threads={args.threads}\n")
+	print("-------------------------------------------------\n")
 	assert args.bfile is not None, "No input data (--bfile)!"
 	assert args.K > 1, "Please set K > 1 (--K)!"
 	assert (args.num_batches & (args.num_batches-1) == 0) and args.num_batches != 0, \
@@ -191,8 +192,8 @@ def main():
 		if it % args.check == 0:
 			em.loglike(G, P, Q, lkVec, args.threads)
 			lkCur = np.sum(lkVec)
-			print("Iteration {},\tLog-like: {}\t({} seconds)".format(
-				it, round(lkCur, 1),round(time()-ts, 1)), flush=True)
+			print(f"Iteration {it},\tLog-like: {round(lkCur,1)}\t " + \
+				f"({round(time()-ts,1)} seconds)", flush=True)
 			if batch:
 				if (lkCur < lkPre) or (abs(lkCur - lkPre) < args.tole):
 					batch_N = batch_N//2

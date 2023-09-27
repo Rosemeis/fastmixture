@@ -2,7 +2,7 @@
 import numpy as np
 cimport numpy as np
 from cython.parallel import prange
-from libc.math cimport fmax, fmin, sqrt
+from libc.math cimport sqrt
 
 ##### Randomized SVD - PCAone method #####
 # Load centered chunk of PLINK file for SVD (individual allele frequencies)
@@ -52,7 +52,7 @@ cpdef void map2domain(double[:,::1] Q) nogil:
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
-			Q[i,k] = fmin(fmax(Q[i,k], 1e-5), 1-(1e-5))
+			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
 			sumQ = sumQ + Q[i,k]
 		for k in range(K):
 			Q[i,k] /= sumQ
