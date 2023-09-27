@@ -1,5 +1,6 @@
 import numpy as np
 import subprocess
+from math import ceil
 from src import svd
 from src import em
 from src import em_batch
@@ -12,34 +13,34 @@ def extract_length(filename):
 	return int(result.split()[0])
 
 ### Randomized SVD (PCAone Halko)
-def randomizedSVD(G, f, N, K, B, power, seed, threads, verbose):
-	rng = np.random.default_rng(seed)
+def randomizedSVD(G, f, N, K, batch, power, seed, threads, verbose):
 	M = G.shape[0]
-	M_batch = M//B
-	L = K + 20
+	W = ceil(M/batch)
+	L = K + 16
+	rng = np.random.default_rng(seed)
 	O = rng.standard_normal(size=(N, L))
 	A = np.zeros((M, L))
 	H = np.zeros((N, L))
 	for p in range(power):
-		X = np.zeros((M_batch, N))
+		X = np.zeros((batch, N))
 		if p > 0:
 			O, _ = np.linalg.qr(H, mode="reduced")
 			H.fill(0.0)
-		for b in range(B):
-			M_b = b*M_batch
-			if (M_b + M_batch) >= M: # Last batch
+		for w in range(W):
+			M_w = w*batch
+			if w == (W-1): # Last batch
 				del X # Ensure no extra copy
-				X = np.zeros((M - M_b, N))
-			svd.plinkChunk(G, X, f, M_b, threads)
-			A[M_b:(M_b + X.shape[0])] = np.dot(X, O)
-			H += np.dot(X.T, A[M_b:(M_b + X.shape[0])])
+				X = np.zeros((M - M_w, N))
+			svd.plinkChunk(G, X, f, M_w, threads)
+			A[M_w:(M_w + X.shape[0])] = np.dot(X, O)
+			H += np.dot(X.T, A[M_w:(M_w + X.shape[0])])
 	Q, R = np.linalg.qr(A, mode="reduced")
 	B = np.linalg.solve(R.T, H.T)
 	Uhat, S, V = np.linalg.svd(B, full_matrices=False)
 	U = np.dot(Q, Uhat)
 	del A, B, H, O, Q, R, Uhat, X
-	U = np.ascontiguousarray(U[:,:K])*np.sqrt(S[:K])
-	V = np.ascontiguousarray(V[:K,:].T)*np.sqrt(S[:K])
+	U = np.ascontiguousarray(U[:,:K]*S[:K])
+	V = np.ascontiguousarray(V[:K,:].T)
 	if verbose:
 		print("Performed Randomized SVD.")
 	return U, V
@@ -52,11 +53,13 @@ def extractFactor(U, V, f, K, iterations, tole, seed, verbose):
 	P = rng.random(size=(M, K)).clip(min=1e-5, max=1-(1e-5))
 	I = np.dot(P, np.linalg.pinv(np.dot(P.T, P)))
 	Q = 0.5*np.dot(V, np.dot(U.T, I)) + np.sum(I*f.reshape(-1,1), axis=0)
+	Q0 = np.zeros_like(Q)
 	svd.map2domain(Q)
-	Q0 = np.copy(Q)
 
 	# Perform ALS iterations
 	for it in range(iterations):
+		np.copyto(Q0, Q, casting="no")
+
 		# Update P
 		I = np.dot(Q, np.linalg.pinv(np.dot(Q.T, Q)))
 		P = 0.5*np.dot(U, np.dot(V.T, I)) + np.outer(f, np.sum(I, axis=0))
@@ -72,7 +75,6 @@ def extractFactor(U, V, f, K, iterations, tole, seed, verbose):
 			print(f"ALS ({it}): {round(svd.rmsd(Q, Q0), 8)}")
 		if svd.rmsd(Q, Q0) < tole:
 			break
-		np.copyto(Q0, Q, casting="no")
 	return P, Q
 
 ### SQUAREM

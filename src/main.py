@@ -15,7 +15,7 @@ from time import time
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
 parser.add_argument("--version", action="version",
-	version="%(prog)s v0.2")
+	version="%(prog)s v0.3")
 parser.add_argument("-b", "--bfile", metavar="PLINK",
 	help="Prefix for PLINK files (.bed, .bim, .fam)")
 parser.add_argument("-k", "--K", metavar="INT", type=int,
@@ -32,12 +32,12 @@ parser.add_argument("-e", "--tole", metavar="FLOAT", type=float, default=1.0,
 	help="Tolerance in log-likelihood units between c-th iterations (1.0)")
 parser.add_argument("-c", "--check", metavar="INT", type=int, default=10,
 	help="Iteration to estimate log-likelihood for convergence check (10)")
-parser.add_argument("--num_batches", metavar="INT", type=int, default=16,
-	help="Number of mini-batches (16)")
+parser.add_argument("--num_batches", metavar="INT", type=int, default=32,
+	help="Number of mini-batches (32)")
 parser.add_argument("--power", metavar="INT", type=int, default=11,
 	help="Number of power iterations in randomized SVD (11)")
-parser.add_argument("--svd_batches", metavar="INT", type=int, default=64,
-	help="Number of batches for SVD (64)")
+parser.add_argument("--svd_batch", metavar="INT", type=int, default=4096,
+	help="Number of batches for SVD (4096)")
 parser.add_argument("--als_iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations in ALS (1000)")
 parser.add_argument("--als_tole", metavar="FLOAT", type=float, default=1e-5,
@@ -58,14 +58,14 @@ def main():
 	if len(sys.argv) < 2:
 		parser.print_help()
 		sys.exit()
-	print(f"fastmixture v0.2")
+	print(f"fastmixture v0.3")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
 	print("Parameters: K={}, seed={}, num_batches={}, threads={}\n".format(args.K, \
 		args.seed, args.num_batches, args.threads))
 	assert args.bfile is not None, "No input data (--bfile)!"
 	assert args.K > 1, "Please set K > 1 (--K)!"
 	assert (args.num_batches & (args.num_batches-1) == 0) and args.num_batches != 0, \
-		"Please set number of batches to a power of 2 (--num_batches)!" 
+		"Please set number of batches to a power of 2 (--num_batches)!"
 	start = time()
 
 	# Create log-file of arguments
@@ -73,7 +73,7 @@ def main():
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "num_batches"]
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
-		log.write("fastmixture v0.2\n")
+		log.write("fastmixture v0.3\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
 		log.write(f"Directory: {os.getcwd()}\n")
 		log.write("Options:\n")
@@ -103,6 +103,9 @@ def main():
 	### Read data
 	print("Reading data...", end="\r")
 	# Finding length of .fam and .bim file
+	assert os.path.isfile(f"{args.bfile}.bed"), "bed file doesn't exist!"
+	assert os.path.isfile(f"{args.bfile}.bim"), "bim file doesn't exist!"
+	assert os.path.isfile(f"{args.bfile}.fam"), "fam file doesn't exist!"
 	N = functions.extract_length(f"{args.bfile}.fam")
 	M = functions.extract_length(f"{args.bfile}.bim")
 
@@ -125,7 +128,7 @@ def main():
 	# Initialize P and Q matrices from SVD and ALS
 	ts = time()
 	print("Initializing P and Q.", end="\r")
-	U, V = functions.randomizedSVD(G, f, N, args.K-1, args.svd_batches, args.power, \
+	U, V = functions.randomizedSVD(G, f, N, args.K-1, args.svd_batch, args.power, \
 		args.seed, args.threads, args.verbose)
 	P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, args.als_tole, \
 		args.seed, args.verbose)
