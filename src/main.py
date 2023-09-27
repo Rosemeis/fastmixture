@@ -61,7 +61,7 @@ def main():
 	print("-------------------------------------------------")
 	print(f"fastmixture v0.3")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
-	print(f"Parameters: K={args.K}, seed={args.seed}, threads={args.threads}\n")
+	print(f"Parameters: K={args.K}, seed={args.seed}, threads={args.threads}")
 	print("-------------------------------------------------\n")
 	assert args.bfile is not None, "No input data (--bfile)!"
 	assert args.K > 1, "Please set K > 1 (--K)!"
