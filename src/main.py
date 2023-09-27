@@ -42,10 +42,10 @@ parser.add_argument("--als_iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations in ALS (1000)")
 parser.add_argument("--als_tole", metavar="FLOAT", type=float, default=1e-5,
 	help="Tolerance for RMSE of P between iterations (1e-5)")
-parser.add_argument("--no_freqs", action="store_true",
-	help="Do not save P-matrix")
 parser.add_argument("--als_save", action="store_true",
 	help="Save initialized factor matrices from ALS")
+parser.add_argument("--no_freqs", action="store_true",
+	help="Do not save P-matrix")
 parser.add_argument("--no_batch", action="store_true",
 	help="DEBUG: Turn off mini-batch updates")
 parser.add_argument("--verbose", action="store_true",
