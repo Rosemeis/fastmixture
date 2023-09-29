@@ -51,16 +51,16 @@ cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 						for k in range(K):
 							sumAG[k] = sumAG[k] + g*Q[i,k]/h
 							sumBG[k] = sumBG[k] + (2-g)*Q[i,k]/(1-h)
-							tmpQA[i*K+k] = tmpQA[i*K+k] + g*P[idx[j],k]/h
-							tmpQB[i*K+k] = tmpQB[i*K+k] + (2-g)*(1-P[idx[j],k])/(1-h)
-						tmpA[i] = tmpA[i] + 1.0
+							tmpQA[i*K+k] += g*P[idx[j],k]/h
+							tmpQB[i*K+k] += (2-g)*(1-P[idx[j],k])/(1-h)
+						tmpA[i] += 1.0
 					byte = byte >> 2
 					i = i + 1
 					if i == N:
 						break					
 			for k in range(K):
-				sumAG[k] = sumAG[k]*P[idx[j],k]
-				sumBG[k] = sumBG[k]*(1-P[idx[j],k])
+				sumAG[k] *= P[idx[j],k]
+				sumBG[k] *= (1-P[idx[j],k])
 				P[idx[j],k] = sumAG[k]/(sumAG[k] + sumBG[k])
 				P[idx[j],k] = min(max(P[idx[j],k], 1e-5), 1-(1e-5))
 		with gil:
@@ -119,19 +119,19 @@ cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 						for k in range(K):
 							h = h + Q[i,k]*P[idx[j],k]
 						for k in range(K):
-							sumAG[k] = sumAG[k] + g*Q[i,k]/h
-							sumBG[k] = sumBG[k] + (2-g)*Q[i,k]/(1-h)
-							tmpQA[i*K+k] = tmpQA[i*K+k] + g*P[idx[j],k]/h
-							tmpQB[i*K+k] = tmpQB[i*K+k] + (2-g)*(1-P[idx[j],k])/(1-h)
-						tmpA[i] = tmpA[i] + 1.0
+							sumAG[k] += g*Q[i,k]/h
+							sumBG[k] += (2-g)*Q[i,k]/(1-h)
+							tmpQA[i*K+k] += g*P[idx[j],k]/h
+							tmpQB[i*K+k] += (2-g)*(1-P[idx[j],k])/(1-h)
+						tmpA[i] += 1.0
 					byte = byte >> 2
 					i = i + 1
 					if i == N:
 						break					
 			for k in range(K):
 				P_old = P[idx[j],k]
-				sumAG[k] = sumAG[k]*P[idx[j],k]
-				sumBG[k] = sumBG[k]*(1-P[idx[j],k])
+				sumAG[k] *= P[idx[j],k]
+				sumBG[k] *= (1-P[idx[j],k])
 				P[idx[j],k] = sumAG[k]/(sumAG[k] + sumBG[k])
 				P[idx[j],k] = min(max(P[idx[j],k], 1e-5), 1-(1e-5))
 				D[idx[j],k] = P[idx[j],k] - P_old

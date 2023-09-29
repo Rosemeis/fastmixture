@@ -75,18 +75,18 @@ cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 						for k in range(K):
 							h = h + Q[i,k]*P[j,k]
 						for k in range(K):
-							sumAG[k] = sumAG[k] + g*Q[i,k]/h
-							sumBG[k] = sumBG[k] + (2-g)*Q[i,k]/(1-h)
-							tmpQA[i*K+k] = tmpQA[i*K+k] + g*P[j,k]/h
-							tmpQB[i*K+k] = tmpQB[i*K+k] + (2-g)*(1-P[j,k])/(1-h)
-						tmpA[i] = tmpA[i] + 1.0
+							sumAG[k] += g*Q[i,k]/h
+							sumBG[k] += (2-g)*Q[i,k]/(1-h)
+							tmpQA[i*K+k] += g*P[j,k]/h
+							tmpQB[i*K+k] += (2-g)*(1-P[j,k])/(1-h)
+						tmpA[i] += 1.0
 					byte = byte >> 2
 					i = i + 1
 					if i == N:
 						break
 			for k in range(K):
-				sumAG[k] = sumAG[k]*P[j,k]
-				sumBG[k] = sumBG[k]*(1-P[j,k])
+				sumAG[k] *= P[j,k]
+				sumBG[k] *= (1-P[j,k])
 				P[j,k] = sumAG[k]/(sumAG[k] + sumBG[k])
 				P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
 		with gil:
@@ -116,7 +116,7 @@ cpdef void updateQ(double[:,::1] Q, double[:,::1] sumQA, double[:,::1] sumQB, \
 			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
 			sumQA[i,k] = 0.0
 			sumQB[i,k] = 0.0
-			sumQ = sumQ + Q[i,k]
+			sumQ += Q[i,k]
 		a[i] = 0.0
 		# map2domain (normalize)
 		for k in range(K):
@@ -165,19 +165,19 @@ cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 						for k in range(K):
 							h = h + Q[i,k]*P[j,k]
 						for k in range(K):
-							sumAG[k] = sumAG[k] + g*Q[i,k]/h
-							sumBG[k] = sumBG[k] + (2-g)*Q[i,k]/(1-h)
-							tmpQA[i*K+k] = tmpQA[i*K+k] + g*P[j,k]/h
-							tmpQB[i*K+k] = tmpQB[i*K+k] + (2-g)*(1-P[j,k])/(1-h)
-						tmpA[i] = tmpA[i] + 1.0
+							sumAG[k] += g*Q[i,k]/h
+							sumBG[k] += (2-g)*Q[i,k]/(1-h)
+							tmpQA[i*K+k] += g*P[j,k]/h
+							tmpQB[i*K+k] += (2-g)*(1-P[j,k])/(1-h)
+						tmpA[i] += 1.0
 					byte = byte >> 2
 					i = i + 1
 					if i == N:
 						break
 			for k in range(K):
 				P_old = P[j,k]
-				sumAG[k] = sumAG[k]*P[j,k]
-				sumBG[k] = sumBG[k]*(1 - P[j,k])
+				sumAG[k] *= P[j,k]
+				sumBG[k] *= (1 - P[j,k])
 				P[j,k] = sumAG[k]/(sumAG[k] + sumBG[k])
 				P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
 				D[j,k] = P[j,k] - P_old
@@ -210,7 +210,7 @@ cpdef void accelQ(double[:,::1] Q, double[:,::1] sumQA, double[:,::1] sumQB, \
 			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
 			sumQA[i,k] = 0.0
 			sumQB[i,k] = 0.0
-			sumQ = sumQ + Q[i,k]
+			sumQ += Q[i,k]
 		a[i] = 0.0
 		# map2domain (normalize)
 		for k in range(K):
@@ -267,7 +267,7 @@ cpdef void accelUpdateP(double[:,::1] P, double[:,::1] D1, double[:,::1] D3, \
 		int j, k
 	for j in prange(M, num_threads=t):
 		for k in range(K):
-			P[j,k] = P[j,k] + 2.0*alpha*D1[j,k] + alpha*alpha*D3[j,k]
+			P[j,k] += 2.0*alpha*D1[j,k] + alpha*alpha*D3[j,k]
 			P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
 
 # Accelerated jump for Q (SQUAREM)
@@ -281,9 +281,9 @@ cpdef void accelUpdateQ(double[:,::1] Q, double[:,::1] D1, double[:,::1] D3, \
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
-			Q[i,k] = Q[i,k] + 2.0*alpha*D1[i,k] + alpha*alpha*D3[i,k]
+			Q[i,k] += 2.0*alpha*D1[i,k] + alpha*alpha*D3[i,k]
 			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
-			sumQ = sumQ + Q[i,k]
+			sumQ += Q[i,k]
 		for k in range(K):
 			Q[i,k] /= sumQ
 
