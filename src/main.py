@@ -156,10 +156,12 @@ def main():
 	### Setup containers for EM algorithm
 	converged = False
 	a = np.zeros(N, dtype=np.float32)
-	sP1 = np.zeros(M, dtype=np.float32)
-	sP2 = np.zeros(M, dtype=np.float32)
+	pr = np.zeros(M, dtype=np.float32)
+	pv = np.zeros(M, dtype=np.float32)
+	P0 = np.zeros((M, args.K), dtype=np.float32)
 	Pa = np.zeros((M, args.K), dtype=np.float32)
 	Pb = np.zeros((M, args.K), dtype=np.float32)
+	Q0 = np.zeros((N, args.K), dtype=np.float32)
 	Qa = np.zeros((N, args.K), dtype=np.float32)
 	Qb = np.zeros((N, args.K), dtype=np.float32)
 	dP1 = np.zeros((M, args.K), dtype=np.float32)
@@ -182,11 +184,11 @@ def main():
 			B_list = np.array_split(np.random.permutation(M), batch_N)
 			for b in B_list:
 				Bs = np.sort(b)
-				functions.squaremBatch(G, P, Q, a, sP1, sP2, Pa, Pb, Qa, \
+				functions.squaremBatch(G, P, Q, a, pr, pv, P0, Pa, Pb, Q0, Qa, \
 					Qb, dP1, dP2, dP3, dQ1, dQ2, dQ3, \
 					Bs, args.threads)
 		else: # SQUAREM full updates
-			functions.squarem(G, P, Q, a, sP1, sP2, Pa, Pb, Qa, Qb, \
+			functions.squarem(G, P, Q, a, pr, pv, P0, Pa, Pb, Q0, Qa, Qb, \
 				dP1, dP2, dP3, dQ1, dQ2, dQ3, args.threads)
 		
 		# SQUAREM stabilization step

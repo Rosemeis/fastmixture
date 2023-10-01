@@ -73,8 +73,8 @@ cpdef void accelP(unsigned char[:,::1] G, float[:,::1] P, float[:,::1] Q, \
 		PyMem_RawFree(Qb_local)
 
 # Accelerated jump for P (SQUAREM)
-cpdef void alphaP(float[:,::1] P, float[:,::1] D1, float[:,::1] D2, \
-		float[:,::1] D3, float[::1] sP1, float[::1] sP2, long[::1] idx, \
+cpdef void alphaP(float[:,::1] P, float[:,::1] P0, float[:,::1] D1, float[:,::1] D2, \
+		float[:,::1] D3, float[::1] pr, float[::1] pv, long[::1] idx, \
 		int t) nogil:
 	cdef:
 		int M = idx.shape[0]
@@ -85,18 +85,18 @@ cpdef void alphaP(float[:,::1] P, float[:,::1] D1, float[:,::1] D2, \
 		float sum2 = 0.0
 	for j in prange(M, num_threads=t):
 		d = idx[j]
-		sP1[j] = 0.0
-		sP2[j] = 0.0
+		pr[j] = 0.0
+		pv[j] = 0.0
 		for k in range(K):
 			D3[d,k] = D2[d,k] - D1[d,k]
-			sP1[j] += D1[d,k]*D1[d,k]
-			sP2[j] += D3[d,k]*D3[d,k]
+			pr[j] += D1[d,k]*D1[d,k]
+			pv[j] += D3[d,k]*D3[d,k]
 	for k in range(M):
-		sum1 += sP1[k]
-		sum2 += sP2[k]
-	alpha = max(1.0, sqrt(sum1/sum2))
+		sum1 += pr[k]
+		sum2 += pv[k]
+	alpha = -sqrt(sum1/sum2)
 	for j in prange(M, num_threads=t):
 		d = idx[j]
 		for k in range(K):
-			P[d,k] = P[d,k] + 2.0*alpha*D1[d,k] + alpha*alpha*D3[d,k]
+			P[d,k] = P0[d,k] - 2.0*alpha*D1[d,k] + alpha*alpha*D3[d,k]
 			P[d,k] = min(max(P[d,k], 1e-5), 1-(1e-5))
