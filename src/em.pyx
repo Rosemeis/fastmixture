@@ -222,7 +222,7 @@ cpdef void alphaQ(float[:,::1] Q, float[:,::1] Q0, float[:,::1] D1, float[:,::1]
 			D3[i,k] = D2[i,k] - D1[i,k]
 			sum1 += D1[i,k]*D1[i,k]
 			sum2 += D3[i,k]*D3[i,k]
-	alpha = -sqrt(sum1/sum2)
+	alpha = -max(1.0, sqrt(sum1/sum2))
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):

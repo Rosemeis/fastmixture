@@ -94,7 +94,7 @@ cpdef void alphaP(float[:,::1] P, float[:,::1] P0, float[:,::1] D1, float[:,::1]
 	for k in range(M):
 		sum1 += pr[k]
 		sum2 += pv[k]
-	alpha = -sqrt(sum1/sum2)
+	alpha = -max(1.0, sqrt(sum1/sum2))
 	for j in prange(M, num_threads=t):
 		d = idx[j]
 		for k in range(K):
