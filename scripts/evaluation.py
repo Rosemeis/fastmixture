@@ -44,8 +44,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = str(args.threads)
 # Import numerical libraries
 import numpy as np
 from math import ceil
-from src import em
-from src import svd
+from src import shared
 from src import functions
 
 ### Read data
@@ -80,8 +79,8 @@ P.clip(min=args.bound, max=1-(args.bound), out=P)
 
 ### Evaluation
 if args.loglike: # Log-likelihood
-	em.loglike(G, P, Q, lVec, args.threads)
+	shared.loglike(G, P, Q, lVec, args.threads)
 else: # Sum-of-squares
-	svd.sumSquare(G, P, Q, lVec, args.threads)
+	shared.sumSquare(G, P, Q, lVec, args.threads)
 l = np.sum(lVec)
 print(f"{round(l,1)}", flush=True)

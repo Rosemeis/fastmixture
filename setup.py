@@ -4,14 +4,6 @@ import numpy
 
 extensions = [
 	Extension(
-		"src.svd",
-		["src/svd.pyx"],
-		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
-		extra_link_args=['-fopenmp'],
-		include_dirs=[numpy.get_include()],
-		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
-	), 
-	Extension(
 		"src.em",
 		["src/em.pyx"],
 		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
@@ -22,6 +14,22 @@ extensions = [
 	Extension(
 		"src.em_batch",
 		["src/em_batch.pyx"],
+		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
+		extra_link_args=['-fopenmp'],
+		include_dirs=[numpy.get_include()],
+		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
+	),
+	Extension(
+		"src.svd",
+		["src/svd.pyx"],
+		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
+		extra_link_args=['-fopenmp'],
+		include_dirs=[numpy.get_include()],
+		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
+	),
+	Extension(
+		"src.shared",
+		["src/shared.pyx"],
 		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],

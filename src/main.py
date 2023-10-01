@@ -37,7 +37,7 @@ parser.add_argument("--num_batches", metavar="INT", type=int, default=32,
 parser.add_argument("--power", metavar="INT", type=int, default=11,
 	help="Number of power iterations in randomized SVD (11)")
 parser.add_argument("--svd_batch", metavar="INT", type=int, default=4096,
-	help="Number of batches for SVD (4096)")
+	help="Number of SNPs in SVD batches (4096)")
 parser.add_argument("--als_iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations in ALS (1000)")
 parser.add_argument("--als_tole", metavar="FLOAT", type=float, default=1e-5,
@@ -47,7 +47,7 @@ parser.add_argument("--als_save", action="store_true",
 parser.add_argument("--no_freqs", action="store_true",
 	help="Do not save P-matrix")
 parser.add_argument("--no_batch", action="store_true",
-	help="DEBUG: Turn off mini-batch updates")
+	help="Turn off mini-batch updates")
 parser.add_argument("--verbose", action="store_true",
 	help="DEBUG: More detailed output for debugging.")
 
@@ -98,8 +98,8 @@ def main():
 	import numpy as np
 	from math import ceil
 	from src import em
-	from src import em_batch
 	from src import functions
+	from src import shared
 
 	### Read data
 	print("Reading data...", end="\r")
@@ -117,20 +117,17 @@ def main():
 	G.shape = (M, B)
 	print(f"Loaded {N} samples and {M} SNPs.", flush=True)
 
-	### Initalize parameters
-	converged = False
-	f = np.zeros(M)
-	a = np.zeros(N)
-	lkVec = np.zeros(M)
-	sumP1 = np.zeros(M) # Helper vector
-	sumP2 = np.zeros(M) # Helper vector
-	em.estimateFreq(G, f, N, args.threads)
+	# Initalize parameters
+	f = np.zeros(M, dtype=np.float32)
+	shared.estimateFreq(G, f, N, args.threads)
 
 	# Initialize P and Q matrices from SVD and ALS
 	ts = time()
 	print("Initializing P and Q.", end="\r")
-	U, V = functions.randomizedSVD(G, f, N, args.K-1, args.svd_batch, args.power, \
-		args.seed, args.threads, args.verbose)
+	U, V = functions.randomizedSVD(G, f, N, args.K-1, args.svd_batch, \
+		args.power, args.seed, args.threads)
+	if args.verbose:
+		print("Performed Randomized SVD.")
 	P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, args.als_tole, \
 		args.seed, args.verbose)
 	print(f"Extracted factor matrices ({round(time()-ts,1)} seconds).")
@@ -151,19 +148,26 @@ def main():
 
 	# Estimate initial log-likelihood
 	ts = time()
-	em.loglike(G, P, Q, lkVec, args.threads)
+	lkVec = np.zeros(M)
+	shared.loglike(G, P, Q, lkVec, args.threads)
 	lkPre = np.sum(lkVec)
 	print(f"Initial loglike: {round(lkPre,1)}", flush=True)
 
-	### Setup matrices for EM algorithm
-	sumQA = np.zeros((N, args.K))
-	sumQB = np.zeros((N, args.K))
-	diffP1 = np.zeros((M, args.K))
-	diffP2 = np.zeros((M, args.K))
-	diffP3 = np.zeros((M, args.K))
-	diffQ1 = np.zeros((N, args.K))
-	diffQ2 = np.zeros((N, args.K))
-	diffQ3 = np.zeros((N, args.K))
+	### Setup containers for EM algorithm
+	converged = False
+	a = np.zeros(N, dtype=np.float32)
+	sP1 = np.zeros(M, dtype=np.float32)
+	sP2 = np.zeros(M, dtype=np.float32)
+	Pa = np.zeros((M, args.K), dtype=np.float32)
+	Pb = np.zeros((M, args.K), dtype=np.float32)
+	Qa = np.zeros((N, args.K), dtype=np.float32)
+	Qb = np.zeros((N, args.K), dtype=np.float32)
+	dP1 = np.zeros((M, args.K), dtype=np.float32)
+	dP2 = np.zeros((M, args.K), dtype=np.float32)
+	dP3 = np.zeros((M, args.K), dtype=np.float32)
+	dQ1 = np.zeros((N, args.K), dtype=np.float32)
+	dQ2 = np.zeros((N, args.K), dtype=np.float32)
+	dQ3 = np.zeros((N, args.K), dtype=np.float32)
 	if not args.no_batch:
 		print("Estimating Q and P using mini-batch EM.")
 		print(f"Using {batch_N} mini-batches.")
@@ -178,19 +182,20 @@ def main():
 			B_list = np.array_split(np.random.permutation(M), batch_N)
 			for b in B_list:
 				Bs = np.sort(b)
-				functions.squaremBatch(G, P, Q, a, sumP1, sumP2, sumQA, sumQB, \
-					diffP1, diffP2, diffP3, diffQ1, diffQ2, diffQ3, Bs, args.threads)
+				functions.squaremBatch(G, P, Q, a, sP1, sP2, Pa, Pb, Qa, \
+					Qb, dP1, dP2, dP3, dQ1, dQ2, dQ3, \
+					Bs, args.threads)
 		else: # SQUAREM full updates
-			functions.squarem(G, P, Q, a, sumP1, sumP2, sumQA, sumQB, \
-				diffP1, diffP2, diffP3, diffQ1, diffQ2, diffQ3, args.threads)
+			functions.squarem(G, P, Q, a, sP1, sP2, Pa, Pb, Qa, Qb, \
+				dP1, dP2, dP3, dQ1, dQ2, dQ3, args.threads)
 		
 		# SQUAREM stabilization step
-		em.updateP(G, P, Q, sumQA, sumQB, a, args.threads)
-		em.updateQ(Q, sumQA, sumQB, a)
+		em.updateP(G, P, Q, Pa, Pb, Qa, Qb, a, args.threads)
+		em.updateQ(Q, Qa, Qb, a)
 
 		# Log-likelihood convergence check
 		if it % args.check == 0:
-			em.loglike(G, P, Q, lkVec, args.threads)
+			shared.loglike(G, P, Q, lkVec, args.threads)
 			lkCur = np.sum(lkVec)
 			print(f"Iteration {it},\tLog-like: {round(lkCur,1)}\t " + \
 				f"({round(time()-ts,1)} seconds)", flush=True)
