@@ -97,9 +97,9 @@ def main():
 	# Load numerical libraries
 	import numpy as np
 	from math import ceil
-	from src import em
-	from src import functions
-	from src import shared
+	from fastmixture import em
+	from fastmixture import functions
+	from fastmixture import shared
 
 	### Read data
 	print("Reading data...", end="\r")

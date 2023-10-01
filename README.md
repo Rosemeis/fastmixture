@@ -12,7 +12,7 @@ pip3 install .
 ### Quick usage
 ```bash
 # Using binary PLINK files
-fastmixture --bfile prefix_plink --K 3 --threads 32 --seed 1 --out test
+fastmixture --bfile data --K 3 --threads 32 --seed 1 --out test
 
 # Outputs Q and P files (test.Q and test.P)
 ```

@@ -4,32 +4,32 @@ import numpy
 
 extensions = [
 	Extension(
-		"src.em",
-		["src/em.pyx"],
+		"fastmixture.em",
+		["fastmixture/em.pyx"],
 		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 	), 
 	Extension(
-		"src.em_batch",
-		["src/em_batch.pyx"],
+		"fastmixture.em_batch",
+		["fastmixture/em_batch.pyx"],
 		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 	),
 	Extension(
-		"src.svd",
-		["src/svd.pyx"],
+		"fastmixture.svd",
+		["fastmixture/svd.pyx"],
 		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 	),
 	Extension(
-		"src.shared",
-		["src/shared.pyx"],
+		"fastmixture.shared",
+		["fastmixture/shared.pyx"],
 		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
@@ -42,9 +42,9 @@ setup(
 	version="0.3",
 	description="Fast Ancestry Estimation",
 	author="Jonas Meisner",
-	packages=["src"],
+	packages=["fastmixture"],
 	entry_points={
-		"console_scripts": ["fastmixture=src.main:main"]
+		"console_scripts": ["fastmixture=fastmixture.main:main"]
 	},
 	python_requires=">=3.6",
 	install_requires=[

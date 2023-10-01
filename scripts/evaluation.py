@@ -44,8 +44,8 @@ os.environ["OPENBLAS_NUM_THREADS"] = str(args.threads)
 # Import numerical libraries
 import numpy as np
 from math import ceil
-from src import shared
-from src import functions
+from fastmixture import shared
+from fastmixture import functions
 
 ### Read data
 # Finding length of .fam and .bim file and finding chromosome indices
