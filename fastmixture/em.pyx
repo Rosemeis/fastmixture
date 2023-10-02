@@ -8,31 +8,37 @@ from libc.math cimport log, sqrt
 ##### fastmixture #####
 # Update P and temp Q arrays
 cpdef void updateP(unsigned char[:,::1] G, float[:,::1] P, float[:,::1] Q, \
-		float[:,::1] Pa, float[:,::1] Pb, float[:,::1] Qa, float[:,::1] Qb, \
-		float[::1] a, int t):
+		float[:,::1] Qa, float[:,::1] Qb, float[::1] a, int t):
 	cdef:
 		int M = G.shape[0]
 		int B = G.shape[1]
 		int N = Q.shape[0]
 		int K = Q.shape[1]
 		int i, j, k, x, y, i0, k0, b, bytepart
-		float h, g
-		float* a_local
-		float* Qa_local
-		float* Qb_local
+		float g, h
+		float* a_thr
+		float* Pa_thr
+		float* Pb_thr
+		float* Qa_thr
+		float* Qb_thr
 		unsigned char[4] recode = [0, 9, 1, 2]
 		unsigned char mask = 3
 		unsigned char byte
 	with nogil, parallel(num_threads=t):
-		a_local = <float*>PyMem_RawMalloc(sizeof(float)*N)
-		Qa_local = <float*>PyMem_RawMalloc(sizeof(float)*N*K)
-		Qb_local = <float*>PyMem_RawMalloc(sizeof(float)*N*K)
+		a_thr = <float*>PyMem_RawMalloc(sizeof(float)*N)
+		Pa_thr = <float*>PyMem_RawMalloc(sizeof(float)*K)
+		Pb_thr = <float*>PyMem_RawMalloc(sizeof(float)*K)
+		Qa_thr = <float*>PyMem_RawMalloc(sizeof(float)*N*K)
+		Qb_thr = <float*>PyMem_RawMalloc(sizeof(float)*N*K)
 		for i0 in range(N):
-			a_local[i0] = 0.0
+			a_thr[i0] = 0.0
 			for k0 in range(K):
-				Qa_local[i0*K + k0] = 0.0
-				Qb_local[i0*K + k0] = 0.0
+				Qa_thr[i0*K + k0] = 0.0
+				Qb_thr[i0*K + k0] = 0.0
 		for j in prange(M):
+			for k in range(K):
+				Pa_thr[k] = 0.0
+				Pb_thr[k] = 0.0
 			i = 0
 			for b in range(B):
 				byte = G[j,b]
@@ -43,60 +49,65 @@ cpdef void updateP(unsigned char[:,::1] G, float[:,::1] P, float[:,::1] Q, \
 						for k in range(K):
 							h = h + Q[i,k]*P[j,k]
 						for k in range(K):
-							Pa[j,k] += g*Q[i,k]/h
-							Pb[j,k] += (2-g)*Q[i,k]/(1-h)
-							Qa_local[i*K+k] += g*P[j,k]/h
-							Qb_local[i*K+k] += (2-g)*(1-P[j,k])/(1-h)
-						a_local[i] += 1.0
+							Pa_thr[k] = Pa_thr[k] + g*Q[i,k]/h
+							Pb_thr[k] = Pb_thr[k] + (2-g)*Q[i,k]/(1-h)
+							Qa_thr[i*K+k] = Qa_thr[i*K+k] + g*P[j,k]/h
+							Qb_thr[i*K+k] = Qb_thr[i*K+k] + (2-g)*(1-P[j,k])/(1-h)
+						a_thr[i] = a_thr[i] + 1.0
 					byte = byte >> 2
 					i = i + 1
 					if i == N:
 						break
 			for k in range(K):
-				Pa[j,k] *= P[j,k]
-				Pb[j,k] *= (1-P[j,k])
-				P[j,k] = Pa[j,k]/(Pa[j,k] + Pb[j,k])
+				Pa_thr[k] = Pa_thr[k]*P[j,k]
+				Pb_thr[k] = Pb_thr[k]*(1-P[j,k])
+				P[j,k] = Pa_thr[k]/(Pa_thr[k] + Pb_thr[k])
 				P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
-				Pa[j,k] = 0.0
-				Pb[j,k] = 0.0
 		with gil:
 			for x in range(N):
-				a[x] += a_local[x]
+				a[x] += a_thr[x]
 				for y in range(K):
-					Qa[x,y] += Qa_local[x*K + y]
-					Qb[x,y] += Qb_local[x*K + y]
-		PyMem_RawFree(a_local)
-		PyMem_RawFree(Qa_local)
-		PyMem_RawFree(Qb_local)
+					Qa[x,y] += Qa_thr[x*K + y]
+					Qb[x,y] += Qb_thr[x*K + y]
+		PyMem_RawFree(a_thr)
+		PyMem_RawFree(Pa_thr)
+		PyMem_RawFree(Pb_thr)
+		PyMem_RawFree(Qa_thr)
+		PyMem_RawFree(Qb_thr)
 
 # Update P in acceleration
 cpdef void accelP(unsigned char[:,::1] G, float[:,::1] P, float[:,::1] Q, \
-		float[:,::1] Pa, float[:,::1] Pb, float[:,::1] Qa, float[:,::1] Qb, \
-		float[:,::1] D, float[::1] a, \
-		int t):
+		float[:,::1] Qa, float[:,::1] Qb, float[:,::1] D, float[::1] a, int t):
 	cdef:
 		int M = G.shape[0]
 		int B = G.shape[1]
 		int N = Q.shape[0]
 		int K = P.shape[1]
 		int i, j, k, x, y, i0, k0, b, bytepart
-		float h, g, Pp
-		float* a_local
-		float* Qa_local
-		float* Qb_local
+		float g, h, P0
+		float* a_thr
+		float* Pa_thr
+		float* Pb_thr
+		float* Qa_thr
+		float* Qb_thr
 		unsigned char[4] recode = [0, 9, 1, 2]
 		unsigned char mask = 3
 		unsigned char byte
 	with nogil, parallel(num_threads=t):
-		a_local = <float*>PyMem_RawMalloc(sizeof(float)*N)
-		Qa_local = <float*>PyMem_RawMalloc(sizeof(float)*N*K)
-		Qb_local = <float*>PyMem_RawMalloc(sizeof(float)*N*K)
+		a_thr = <float*>PyMem_RawMalloc(sizeof(float)*N)
+		Pa_thr = <float*>PyMem_RawMalloc(sizeof(float)*K)
+		Pb_thr = <float*>PyMem_RawMalloc(sizeof(float)*K)
+		Qa_thr = <float*>PyMem_RawMalloc(sizeof(float)*N*K)
+		Qb_thr = <float*>PyMem_RawMalloc(sizeof(float)*N*K)
 		for i0 in range(N):
-			a_local[i0] = 0.0
+			a_thr[i0] = 0.0
 			for k0 in range(K):
-				Qa_local[i0*K + k0] = 0.0
-				Qb_local[i0*K + k0] = 0.0
+				Qa_thr[i0*K + k0] = 0.0
+				Qb_thr[i0*K + k0] = 0.0
 		for j in prange(M):
+			for k in range(K):
+				Pa_thr[k] = 0.0
+				Pb_thr[k] = 0.0
 			i = 0
 			for b in range(B):
 				byte = G[j,b]
@@ -107,33 +118,33 @@ cpdef void accelP(unsigned char[:,::1] G, float[:,::1] P, float[:,::1] Q, \
 						for k in range(K):
 							h = h + Q[i,k]*P[j,k]
 						for k in range(K):
-							Pa[j,k] += g*Q[i,k]/h
-							Pb[j,k] += (2-g)*Q[i,k]/(1-h)
-							Qa_local[i*K+k] += g*P[j,k]/h
-							Qb_local[i*K+k] += (2-g)*(1-P[j,k])/(1-h)
-						a_local[i] += 1.0
+							Pa_thr[k] = Pa_thr[k] + g*Q[i,k]/h
+							Pb_thr[k] = Pb_thr[k] + (2-g)*Q[i,k]/(1-h)
+							Qa_thr[i*K+k] = Qa_thr[i*K+k] + g*P[j,k]/h
+							Qb_thr[i*K+k] = Qb_thr[i*K+k] + (2-g)*(1-P[j,k])/(1-h)
+						a_thr[i] = a_thr[i] + 1.0
 					byte = byte >> 2
 					i = i + 1
 					if i == N:
 						break
 			for k in range(K):
-				Pp = P[j,k]
-				Pa[j,k] *= P[j,k]
-				Pb[j,k] *= (1-P[j,k])
-				P[j,k] = Pa[j,k]/(Pa[j,k] + Pb[j,k])
+				P0 = P[j,k]
+				Pa_thr[k] = Pa_thr[k]*P[j,k]
+				Pb_thr[k] = Pb_thr[k]*(1-P[j,k])
+				P[j,k] = Pa_thr[k]/(Pa_thr[k] + Pb_thr[k])
 				P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
-				Pa[j,k] = 0.0
-				Pb[j,k] = 0.0
-				D[j,k] = P[j,k] - Pp
+				D[j,k] = P[j,k] - P0
 		with gil:
 			for x in range(N):
-				a[x] += a_local[x]
+				a[x] += a_thr[x]
 				for y in range(K):
-					Qa[x,y] += Qa_local[x*K + y]
-					Qb[x,y] += Qb_local[x*K + y]
-		PyMem_RawFree(a_local)
-		PyMem_RawFree(Qa_local)
-		PyMem_RawFree(Qb_local)
+					Qa[x,y] += Qa_thr[x*K + y]
+					Qb[x,y] += Qb_thr[x*K + y]
+		PyMem_RawFree(a_thr)
+		PyMem_RawFree(Pa_thr)
+		PyMem_RawFree(Pb_thr)
+		PyMem_RawFree(Qa_thr)
+		PyMem_RawFree(Qb_thr)
 
 # Update Q
 cpdef void updateQ(float[:,::1] Q, float[:,::1] Qa, float[:,::1] Qb, \
@@ -164,11 +175,11 @@ cpdef void accelQ(float[:,::1] Q, float[:,::1] Qa, float[:,::1] Qb, \
 		int K = Q.shape[1]
 		int i, j, k
 		float sumQ
-		float* Qp = <float*>PyMem_RawMalloc(sizeof(float)*K)
+		float* Q0 = <float*>PyMem_RawMalloc(sizeof(float)*K)
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
-			Qp[k] = Q[i,k]
+			Q0[k] = Q[i,k]
 			Q[i,k] = (Qa[i,k]*Q[i,k] + Qb[i,k]*Q[i,k])/(2.0*a[i])
 			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
 			Qa[i,k] = 0.0
@@ -178,8 +189,8 @@ cpdef void accelQ(float[:,::1] Q, float[:,::1] Qa, float[:,::1] Qb, \
 		# map2domain (normalize)
 		for k in range(K):
 			Q[i,k] = Q[i,k]/sumQ
-			D[i,k] = Q[i,k] - Qp[k]
-	PyMem_RawFree(Qp)
+			D[i,k] = Q[i,k] - Q0[k]
+	PyMem_RawFree(Q0)
 
 # Accelerated jump for P (SQUAREM)
 cpdef void alphaP(float[:,::1] P, float[:,::1] P0, float[:,::1] D1, float[:,::1] D2, \
@@ -201,7 +212,7 @@ cpdef void alphaP(float[:,::1] P, float[:,::1] P0, float[:,::1] D1, float[:,::1]
 	for i in range(M):
 		sum1 += pr[i]
 		sum2 += pv[i]
-	alpha = -sqrt(sum1/sum2)
+	alpha = -max(1.0, sqrt(sum1/sum2))
 	for j in prange(M, num_threads=t):
 		for k in range(K):
 			P[j,k] = P0[j,k] - 2.0*alpha*D1[j,k] + alpha*alpha*D3[j,k]

@@ -98,6 +98,7 @@ def main():
 	import numpy as np
 	from math import ceil
 	from fastmixture import em
+	from fastmixture import em_batch
 	from fastmixture import functions
 	from fastmixture import shared
 
@@ -159,8 +160,6 @@ def main():
 	pr = np.zeros(M, dtype=np.float32)
 	pv = np.zeros(M, dtype=np.float32)
 	P0 = np.zeros((M, args.K), dtype=np.float32)
-	Pa = np.zeros((M, args.K), dtype=np.float32)
-	Pb = np.zeros((M, args.K), dtype=np.float32)
 	Q0 = np.zeros((N, args.K), dtype=np.float32)
 	Qa = np.zeros((N, args.K), dtype=np.float32)
 	Qb = np.zeros((N, args.K), dtype=np.float32)
@@ -183,16 +182,16 @@ def main():
 		if batch: # SQUAREM mini-batch updates
 			B_list = np.array_split(np.random.permutation(M), batch_N)
 			for b in B_list:
-				Bs = np.sort(b)
-				functions.squaremBatch(G, P, Q, a, pr, pv, P0, Pa, Pb, Q0, Qa, \
-					Qb, dP1, dP2, dP3, dQ1, dQ2, dQ3, \
-					Bs, args.threads)
-		else: # SQUAREM full updates
-			functions.squarem(G, P, Q, a, pr, pv, P0, Pa, Pb, Q0, Qa, Qb, \
+				s = np.sort(b)
+				functions.squaremBatch(G, P, Q, a, pr, pv, P0, Q0, Qa, Qb, \
+					dP1, dP2, dP3, dQ1, dQ2, dQ3, s, args.threads)
+		else:
+			# SQUAREM full update
+			functions.squarem(G, P, Q, a, pr, pv, P0, Q0, Qa, Qb, \
 				dP1, dP2, dP3, dQ1, dQ2, dQ3, args.threads)
-		
+			
 		# SQUAREM stabilization step
-		em.updateP(G, P, Q, Pa, Pb, Qa, Qb, a, args.threads)
+		em.updateP(G, P, Q, Qa, Qb, a, args.threads)
 		em.updateQ(Q, Qa, Qb, a)
 
 		# Log-likelihood convergence check

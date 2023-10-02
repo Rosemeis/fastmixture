@@ -1,9 +1,9 @@
 import numpy as np
 import subprocess
 from math import ceil
-from fastmixture import svd
 from fastmixture import em
 from fastmixture import em_batch
+from fastmixture import svd
 
 ##### fastmixture functions #####
 ### PLINK info
@@ -51,8 +51,8 @@ def extractFactor(U, V, f, K, iterations, tole, seed, verbose):
 	P = rng.random(size=(M, K)).astype(np.float32).clip(min=1e-5, max=1-(1e-5))
 	I = np.dot(P, np.linalg.pinv(np.dot(P.T, P)))
 	Q = 0.5*np.dot(V, np.dot(U.T, I)) + np.sum(I*f.reshape(-1,1), axis=0)
-	Q0 = np.zeros_like(Q)
 	svd.map2domain(Q)
+	Q0 = np.zeros_like(Q)	
 
 	# Perform ALS iterations
 	for it in range(iterations):
@@ -77,17 +77,17 @@ def extractFactor(U, V, f, K, iterations, tole, seed, verbose):
 
 ### SQUAREM
 # Full update
-def squarem(G, P, Q, a, pr, pv, P0, Pa, Pb, Q0, Qa, Qb, dP1, dP2, dP3, \
+def squarem(G, P, Q, a, pr, pv, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
 		dQ1, dQ2, dQ3, threads):
 	np.copyto(P0, P, casting="no")
 	np.copyto(Q0, Q, casting="no")
 
 	# 1st EM step
-	em.accelP(G, P, Q, Pa, Pb, Qa, Qb, dP1, a, threads)
+	em.accelP(G, P, Q, Qa, Qb, dP1, a, threads)
 	em.accelQ(Q, Qa, Qb, dQ1, a)
 
 	# 2nd EM step
-	em.accelP(G, P, Q, Pa, Pb, Qa, Qb, dP2, a, threads)
+	em.accelP(G, P, Q, Qa, Qb, dP2, a, threads)
 	em.accelQ(Q, Qa, Qb, dQ2, a)
 
 	# Acceleation update
@@ -95,17 +95,17 @@ def squarem(G, P, Q, a, pr, pv, P0, Pa, Pb, Q0, Qa, Qb, dP1, dP2, dP3, \
 	em.alphaQ(Q, Q0, dQ1, dQ2, dQ3)
 
 # Mini-batch update
-def squaremBatch(G, P, Q, a, pr, pv, P0, Pa, Pb, Q0, Qa, Qb, dP1, dP2, dP3, \
+def squaremBatch(G, P, Q, a, pr, pv, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
 		dQ1, dQ2, dQ3, B, threads):
 	np.copyto(P0, P, casting="no")
 	np.copyto(Q0, Q, casting="no")
 
 	# 1st EM step
-	em_batch.accelP(G, P, Q, Pa, Pb, Qa, Qb, dP1, a, B, threads)
+	em_batch.accelP(G, P, Q, Qa, Qb, dP1, a, B, threads)
 	em.accelQ(Q, Qa, Qb, dQ1, a)
 
 	# 2nd EM step
-	em_batch.accelP(G, P, Q, Pa, Pb, Qa, Qb, dP2, a, B, threads)
+	em_batch.accelP(G, P, Q, Qa, Qb, dP2, a, B, threads)
 	em.accelQ(Q, Qa, Qb, dQ2, a)
 
 	# Batch acceleration update
