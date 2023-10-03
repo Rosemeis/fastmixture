@@ -28,11 +28,11 @@ parser.add_argument("-s", "--seed", metavar="INT", type=int, default=42,
 	help="Set random seed (42)")
 parser.add_argument("-i", "--iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations (1000)")
-parser.add_argument("-e", "--tole", metavar="FLOAT", type=float, default=1.0,
-	help="Tolerance in log-likelihood units between c-th iterations (1.0)")
+parser.add_argument("-e", "--tole", metavar="FLOAT", type=float, default=0.5,
+	help="Tolerance in log-likelihood units between c-th iterations (0.5)")
 parser.add_argument("-c", "--check", metavar="INT", type=int, default=10,
 	help="Iteration to estimate log-likelihood for convergence check (10)")
-parser.add_argument("--num_batches", metavar="INT", type=int, default=32,
+parser.add_argument("--batches", metavar="INT", type=int, default=32,
 	help="Number of mini-batches (32)")
 parser.add_argument("--power", metavar="INT", type=int, default=11,
 	help="Number of power iterations in randomized SVD (11)")
@@ -61,18 +61,18 @@ def main():
 	print("-------------------------------------------------")
 	print(f"fastmixture v0.3")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
-	print(f"Parameters: K={args.K}, seed={args.seed}, threads={args.threads}")
+	print(f"Parameters: K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
 	assert args.bfile is not None, "No input data (--bfile)!"
 	assert args.K > 1, "Please set K > 1 (--K)!"
-	assert (args.num_batches & (args.num_batches-1) == 0) and args.num_batches != 0, \
-		"Please set number of batches to a power of 2 (--num_batches)!"
+	assert (args.batches & (args.batches-1) == 0) and args.batches != 0, \
+		"Please set number of batches to a power of 2 (--batches)!"
 	start = time()
 
 	# Create log-file of arguments
 	full = vars(parser.parse_args())
 	deaf = vars(parser.parse_args([]))
-	mand = ["seed", "num_batches"]
+	mand = ["seed", "batches"]
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
 		log.write("fastmixture v0.3\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
@@ -98,6 +98,7 @@ def main():
 	import numpy as np
 	from math import ceil
 	from fastmixture import em
+	from fastmixture import em_batch
 	from fastmixture import functions
 	from fastmixture import shared
 
@@ -144,7 +145,7 @@ def main():
 		batch = False
 	else:
 		batch = True
-		batch_N = args.num_batches
+		batch_N = args.batches
 
 	# Estimate initial log-likelihood
 	ts = time()
@@ -195,7 +196,7 @@ def main():
 			functions.squarem(G, P, Q, a, pr, pv, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
 				dQ1, dQ2, dQ3, args.threads)
 		
-		# SQUAREM stabilization step
+		# Stabilization step
 		em.updateP(G, P, Q, Qa, Qb, a, args.threads)
 		em.updateQ(Q, Qa, Qb, a)
 
@@ -212,7 +213,7 @@ def main():
 						print(f"Using {batch_N} mini-batches.")
 					else:
 						batch = False
-						print("Running standard ACX updates.")
+						print("Running non-batched SQUAREM updates.")
 			else:
 				if (abs(lkCur - lkPre) < args.tole):
 					print("Converged!")
