@@ -98,7 +98,6 @@ def main():
 	import numpy as np
 	from math import ceil
 	from fastmixture import em
-	from fastmixture import em_batch
 	from fastmixture import functions
 	from fastmixture import shared
 
@@ -152,17 +151,23 @@ def main():
 	lkVec = np.zeros(M)
 	shared.loglike(G, P, Q, lkVec, args.threads)
 	lkPre = np.sum(lkVec)
-	print(f"Initial loglike: {round(lkPre,1)}", flush=True)
+	print(f"Initial loglike: {round(lkPre,1)}\n", flush=True)
 
-	### Setup containers for EM algorithm
-	converged = False
+	### EM algorithm
 	a = np.zeros(N, dtype=np.float32)
+	Qa = np.zeros((N, args.K), dtype=np.float32)
+	Qb = np.zeros((N, args.K), dtype=np.float32)
+
+	# Prime iteration
+	em.updateP(G, P, Q, Qa, Qb, a, args.threads)
+	em.updateQ(Q, Qa, Qb, a)
+
+	# Setup containers for EM algorithm
+	converged = False
 	pr = np.zeros(M, dtype=np.float32)
 	pv = np.zeros(M, dtype=np.float32)
 	P0 = np.zeros((M, args.K), dtype=np.float32)
 	Q0 = np.zeros((N, args.K), dtype=np.float32)
-	Qa = np.zeros((N, args.K), dtype=np.float32)
-	Qb = np.zeros((N, args.K), dtype=np.float32)
 	dP1 = np.zeros((M, args.K), dtype=np.float32)
 	dP2 = np.zeros((M, args.K), dtype=np.float32)
 	dP3 = np.zeros((M, args.K), dtype=np.float32)
@@ -175,7 +180,7 @@ def main():
 	else:
 		print("Estimating Q and P using EM.")
 
-	### EM algorithm
+	# fastmixture algorithm
 	ts = time()
 	np.random.seed(args.seed)
 	for it in range(1, args.iter+1):
@@ -187,9 +192,9 @@ def main():
 					dP1, dP2, dP3, dQ1, dQ2, dQ3, s, args.threads)
 		else:
 			# SQUAREM full update
-			functions.squarem(G, P, Q, a, pr, pv, P0, Q0, Qa, Qb, \
-				dP1, dP2, dP3, dQ1, dQ2, dQ3, args.threads)
-			
+			functions.squarem(G, P, Q, a, pr, pv, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
+				dQ1, dQ2, dQ3, args.threads)
+		
 		# SQUAREM stabilization step
 		em.updateP(G, P, Q, Qa, Qb, a, args.threads)
 		em.updateQ(Q, Qa, Qb, a)
@@ -207,7 +212,7 @@ def main():
 						print(f"Using {batch_N} mini-batches.")
 					else:
 						batch = False
-						print("Running standard SQUAREM updates.")
+						print("Running standard ACX updates.")
 			else:
 				if (abs(lkCur - lkPre) < args.tole):
 					print("Converged!")
