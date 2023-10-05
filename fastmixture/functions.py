@@ -77,8 +77,7 @@ def extractFactor(U, V, f, K, iterations, tole, seed, verbose):
 
 ### SQUAREM
 # Full update
-def squarem(G, P, Q, a, pr, pv, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
-		dQ1, dQ2, dQ3, threads):
+def squarem(G, P, Q, a, P0, Q0, Qa, Qb, dP1, dP2, dP3, dQ1, dQ2, dQ3, threads):
 	np.copyto(P0, P, casting="no")
 	np.copyto(Q0, Q, casting="no")
 
@@ -91,12 +90,12 @@ def squarem(G, P, Q, a, pr, pv, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
 	em.accelQ(Q, Qa, Qb, dQ2, a)
 
 	# Acceleation update
-	em.alphaP(P, P0, dP1, dP2, dP3, pr, pv, threads)
+	em.alphaP(P, P0, dP1, dP2, dP3, threads)
 	em.alphaQ(Q, Q0, dQ1, dQ2, dQ3)
 
 # Mini-batch update
-def squaremBatch(G, P, Q, a, pr, pv, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
-		dQ1, dQ2, dQ3, B, threads):
+def squaremBatch(G, P, Q, a, P0, Q0, Qa, Qb, dP1, dP2, dP3, dQ1, dQ2, dQ3, B, \
+		threads):
 	np.copyto(P0, P, casting="no")
 	np.copyto(Q0, Q, casting="no")
 
@@ -109,5 +108,5 @@ def squaremBatch(G, P, Q, a, pr, pv, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
 	em.accelQ(Q, Qa, Qb, dQ2, a)
 
 	# Batch acceleration update
-	em_batch.alphaP(P, P0, dP1, dP2, dP3, pr, pv, B, threads)
+	em_batch.alphaP(P, P0, dP1, dP2, dP3, B, threads)
 	em.alphaQ(Q, Q0, dQ1, dQ2, dQ3)

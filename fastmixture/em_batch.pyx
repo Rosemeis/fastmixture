@@ -151,27 +151,21 @@ cpdef void accelP(unsigned char[:,::1] G, float[:,::1] P, float[:,::1] Q, \
 
 # Accelerated jump for P (SQUAREM)
 cpdef void alphaP(float[:,::1] P, float[:,::1] P0, float[:,::1] D1, \
-		float[:,::1] D2, float[:,::1] D3, float[::1] pr, float[::1] pv, \
-		long[::1] idx, int t) nogil:
+		float[:,::1] D2, float[:,::1] D3, long[::1] idx, int t) nogil:
 	cdef:
 		int M = idx.shape[0]
 		int K = P.shape[1]
-		int d, i, j, k
+		int d, j, k
 		float alpha
 		float sum1 = 0.0
 		float sum2 = 0.0
-	for j in prange(M, num_threads=t):
+	for j in range(M):
 		d = idx[j]
-		pr[j] = 0.0
-		pv[j] = 0.0
 		for k in range(K):
 			D3[d,k] = D2[d,k] - D1[d,k]
-			pr[j] += D1[d,k]*D1[d,k]
-			pv[j] += D3[d,k]*D3[d,k]
-	for i in range(M):
-		sum1 += pr[i]
-		sum2 += pv[i]
-	alpha = max(1.0, sqrt(sum1/sum2))
+			sum1 += D1[d,k]*D1[d,k]
+			sum2 += D3[d,k]*D3[d,k]
+	alpha = max(1.0, sqrt(sum1)/sqrt(sum2))
 	for j in prange(M, num_threads=t):
 		d = idx[j]
 		for k in range(K):

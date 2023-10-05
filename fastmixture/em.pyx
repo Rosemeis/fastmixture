@@ -194,26 +194,20 @@ cpdef void accelQ(float[:,::1] Q, float[:,::1] Qa, float[:,::1] Qb, \
 
 # Accelerated jump for P (SQUAREM)
 cpdef void alphaP(float[:,::1] P, float[:,::1] P0, float[:,::1] D1, \
-		float[:,::1] D2, float[:,::1] D3, float[::1] pr, float[::1] pv, \
-		int t) nogil:
+		float[:,::1] D2, float[:,::1] D3, int t) nogil:
 	cdef:
 		int M = P.shape[0]
 		int K = P.shape[1]
-		int i, j, k
+		int j, k
 		float alpha
 		float sum1 = 0.0
 		float sum2 = 0.0
-	for j in prange(M, num_threads=t):
-		pr[j] = 0.0
-		pv[j] = 0.0
+	for j in range(M):
 		for k in range(K):
 			D3[j,k] = D2[j,k] - D1[j,k]
-			pr[j] += D1[j,k]*D1[j,k]
-			pv[j] += D3[j,k]*D3[j,k]
-	for i in range(M):
-		sum1 += pr[i]
-		sum2 += pv[i]
-	alpha = max(1.0, sqrt(sum1/sum2))
+			sum1 += D1[j,k]*D1[j,k]
+			sum2 += D3[j,k]*D3[j,k]
+	alpha = max(1.0, sqrt(sum1)/sqrt(sum2))
 	for j in prange(M, num_threads=t):
 		for k in range(K):
 			P[j,k] = P0[j,k] + 2.0*alpha*D1[j,k] + alpha*alpha*D3[j,k]
@@ -234,7 +228,7 @@ cpdef void alphaQ(float[:,::1] Q, float[:,::1] Q0, float[:,::1] D1, \
 			D3[i,k] = D2[i,k] - D1[i,k]
 			sum1 += D1[i,k]*D1[i,k]
 			sum2 += D3[i,k]*D3[i,k]
-	alpha = max(1.0, sqrt(sum1/sum2))
+	alpha = max(1.0, sqrt(sum1)/sqrt(sum2))
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
