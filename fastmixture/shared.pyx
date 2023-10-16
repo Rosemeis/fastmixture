@@ -7,12 +7,12 @@ from libc.math cimport log, sqrt
 
 ##### fastmixture ######
 # Estimate minor allele frequencies
-cpdef void estimateFreq(unsigned char[:,::1] G, float[::1] f, int N, int t) nogil:
+cpdef void estimateFreq(unsigned char[:,::1] G, double[::1] f, int N, int t) nogil:
 	cdef:
 		int M = G.shape[0]
 		int B = G.shape[1]
 		int i, j, b, bytepart
-		float g, n
+		double g, n
 		unsigned char[4] recode = [0, 9, 1, 2]
 		unsigned char mask = 3
 		unsigned char byte
@@ -23,7 +23,7 @@ cpdef void estimateFreq(unsigned char[:,::1] G, float[::1] f, int N, int t) nogi
 			byte = G[j,b]
 			for bytepart in range(4):
 				if recode[byte & mask] != 9:
-					f[j] += <float>recode[byte & mask]
+					f[j] += <double>recode[byte & mask]
 					n = n + 1.0
 				byte = byte >> 2
 				i = i + 1
@@ -32,7 +32,7 @@ cpdef void estimateFreq(unsigned char[:,::1] G, float[::1] f, int N, int t) nogi
 		f[j] /= (2.0*n)
 
 # Log-likelihood
-cpdef void loglike(unsigned char[:,::1] G, float[:,::1] P, float[:,::1] Q, \
+cpdef void loglike(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		double[::1] lkVec, int t) nogil:
 	cdef:
 		int M = G.shape[0]
@@ -54,7 +54,7 @@ cpdef void loglike(unsigned char[:,::1] G, float[:,::1] P, float[:,::1] Q, \
 					g = <double>recode[byte & mask]
 					h = 0.0
 					for k in range(K):
-						h = h + <double>(Q[i,k]*P[j,k])
+						h = h + Q[i,k]*P[j,k]
 					lkVec[j] += g*log(h) + (2-g)*log(1-h)
 				byte = byte >> 2
 				i = i + 1
@@ -62,7 +62,7 @@ cpdef void loglike(unsigned char[:,::1] G, float[:,::1] P, float[:,::1] Q, \
 					break
 
 # Sum-of-squares used for evaluation 
-cpdef void sumSquare(unsigned char[:,::1] G, float[:,::1] P, float[:,::1] Q, \
+cpdef void sumSquare(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		double[::1] lsVec, int t) nogil:
 	cdef:
 		int M = G.shape[0]
@@ -84,7 +84,7 @@ cpdef void sumSquare(unsigned char[:,::1] G, float[:,::1] P, float[:,::1] Q, \
 					g = <double>recode[byte & mask]
 					h = 0.0
 					for k in range(K):
-						h = h + <double>(Q[i,k]*P[j,k])
+						h = h + Q[i,k]*P[j,k]
 					lsVec[j] += (g - 2*h)*(g - 2*h)
 				byte = byte >> 2
 				i = i + 1

@@ -18,11 +18,11 @@ def randomizedSVD(G, f, N, K, batch, power, seed, threads):
 	W = ceil(M/batch)
 	L = K + 16
 	rng = np.random.default_rng(seed)
-	O = rng.standard_normal(size=(N, L)).astype(np.float32)
-	A = np.zeros((M, L), dtype=np.float32)
-	H = np.zeros((N, L), dtype=np.float32)
+	O = rng.standard_normal(size=(N, L))
+	A = np.zeros((M, L))
+	H = np.zeros((N, L))
 	for p in range(power):
-		X = np.zeros((batch, N), dtype=np.float32)
+		X = np.zeros((batch, N))
 		if p > 0:
 			O, _ = np.linalg.qr(H, mode="reduced")
 			H.fill(0.0)
@@ -30,7 +30,7 @@ def randomizedSVD(G, f, N, K, batch, power, seed, threads):
 			M_w = w*batch
 			if w == (W-1): # Last batch
 				del X # Ensure no extra copy
-				X = np.zeros((M - M_w, N), dtype=np.float32)
+				X = np.zeros((M - M_w, N))
 			svd.plinkChunk(G, X, f, M_w, threads)
 			A[M_w:(M_w + X.shape[0])] = np.dot(X, O)
 			H += np.dot(X.T, A[M_w:(M_w + X.shape[0])])
@@ -48,7 +48,7 @@ def extractFactor(U, V, f, K, iterations, tole, seed, verbose):
 	rng = np.random.default_rng(seed)
 	M = U.shape[0]
 	N = V.shape[0]
-	P = rng.random(size=(M, K)).astype(np.float32).clip(min=1e-5, max=1-(1e-5))
+	P = rng.random(size=(M, K)).clip(min=1e-5, max=1-(1e-5))
 	I = np.dot(P, np.linalg.pinv(np.dot(P.T, P)))
 	Q = 0.5*np.dot(V, np.dot(U.T, I)) + np.sum(I*f.reshape(-1,1), axis=0)
 	svd.map2domain(Q)

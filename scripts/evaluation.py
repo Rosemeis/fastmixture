@@ -59,7 +59,6 @@ B = ceil(N/4) # Length of bytes to describe n individuals
 G.shape = (M, B)
 
 ### Initalize parameters
-f = np.zeros(M)
 lVec = np.zeros(M)
 
 # Load Q and P file

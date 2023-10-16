@@ -47,7 +47,7 @@ parser.add_argument("--als_save", action="store_true",
 parser.add_argument("--no_freqs", action="store_true",
 	help="Do not save P-matrix")
 parser.add_argument("--no_batch", action="store_true",
-	help="Turn off mini-batch updates")
+	help="DEBUG: Turn off mini-batch updates")
 parser.add_argument("--verbose", action="store_true",
 	help="DEBUG: More detailed output for debugging.")
 
@@ -61,7 +61,7 @@ def main():
 	print("-------------------------------------------------")
 	print(f"fastmixture v0.3")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
-	print(f"Parameters: K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
+	print(f"K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
 	assert args.bfile is not None, "No input data (--bfile)!"
 	assert args.K > 1, "Please set K > 1 (--K)!"
@@ -119,7 +119,7 @@ def main():
 	print(f"Loaded {N} samples and {M} SNPs.", flush=True)
 
 	# Initalize parameters
-	f = np.zeros(M, dtype=np.float32)
+	f = np.zeros(M)
 	shared.estimateFreq(G, f, N, args.threads)
 
 	# Initialize P and Q matrices from SVD and ALS
@@ -140,13 +140,6 @@ def main():
 		if not args.no_freqs:
 			np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.als.P", P, fmt="%.6f")
 
-	# Mini-batch parameters for stochastic EM
-	if args.no_batch:
-		batch = False
-	else:
-		batch = True
-		batch_N = args.batches
-
 	# Estimate initial log-likelihood
 	ts = time()
 	lkVec = np.zeros(M)
@@ -154,26 +147,33 @@ def main():
 	lkPre = np.sum(lkVec)
 	print(f"Initial loglike: {round(lkPre,1)}\n", flush=True)
 
-	### EM algorithm
-	a = np.zeros(N, dtype=np.float32)
-	Qa = np.zeros((N, args.K), dtype=np.float32)
-	Qb = np.zeros((N, args.K), dtype=np.float32)
+	# Mini-batch parameters for stochastic EM
+	if args.no_batch:
+		batch = False
+	else:
+		batch = True
+		batch_L = lkPre
+		batch_N = args.batches
 
-	# Prime iterations
-	for i in range(3):
-		em.updateP(G, P, Q, Qa, Qb, a, args.threads)
-		em.updateQ(Q, Qa, Qb, a)
+	### EM algorithm
+	a = np.zeros(N)
+	Qa = np.zeros((N, args.K))
+	Qb = np.zeros((N, args.K))
+
+	# Prime iteration
+	em.updateP(G, P, Q, Qa, Qb, a, args.threads)
+	em.updateQ(Q, Qa, Qb, a)
 
 	# Setup containers for EM algorithm
 	converged = False
-	P0 = np.zeros((M, args.K), dtype=np.float32)
-	Q0 = np.zeros((N, args.K), dtype=np.float32)
-	dP1 = np.zeros((M, args.K), dtype=np.float32)
-	dP2 = np.zeros((M, args.K), dtype=np.float32)
-	dP3 = np.zeros((M, args.K), dtype=np.float32)
-	dQ1 = np.zeros((N, args.K), dtype=np.float32)
-	dQ2 = np.zeros((N, args.K), dtype=np.float32)
-	dQ3 = np.zeros((N, args.K), dtype=np.float32)
+	P0 = np.zeros((M, args.K))
+	Q0 = np.zeros((N, args.K))
+	dP1 = np.zeros((M, args.K))
+	dP2 = np.zeros((M, args.K))
+	dP3 = np.zeros((M, args.K))
+	dQ1 = np.zeros((N, args.K))
+	dQ2 = np.zeros((N, args.K))
+	dQ3 = np.zeros((N, args.K))
 	if not args.no_batch:
 		print("Estimating Q and P using mini-batch EM.")
 		print(f"Using {batch_N} mini-batches.")
@@ -202,16 +202,18 @@ def main():
 		if it % args.check == 0:
 			shared.loglike(G, P, Q, lkVec, args.threads)
 			lkCur = np.sum(lkVec)
-			print(f"Iteration {it},\tLog-like: {round(lkCur,1)}\t " + \
-				f"({round(time()-ts,1)} seconds)", flush=True)
+			print(f"({it})\tLog-like: {round(lkCur,1)}\t" + \
+				f"({round(time()-ts,1)}s)", flush=True)
 			if batch:
-				if (lkCur < lkPre) or (abs(lkCur - lkPre) < args.tole):
+				if lkCur < batch_L:
 					batch_N = batch_N//2
 					if batch_N > 1:
 						print(f"Using {batch_N} mini-batches.")
 					else:
 						batch = False
 						print("Running non-batched SQUAREM updates.")
+				else:
+					batch_L = lkCur
 			else:
 				if (abs(lkCur - lkPre) < args.tole):
 					print("Converged!")
