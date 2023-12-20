@@ -6,7 +6,7 @@ extensions = [
 	Extension(
 		"fastmixture.em",
 		["fastmixture/em.pyx"],
-		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
+		extra_compile_args=['-fopenmp', '-O3', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
@@ -14,7 +14,7 @@ extensions = [
 	Extension(
 		"fastmixture.em_batch",
 		["fastmixture/em_batch.pyx"],
-		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
+		extra_compile_args=['-fopenmp', '-O3', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
@@ -22,7 +22,7 @@ extensions = [
 	Extension(
 		"fastmixture.svd",
 		["fastmixture/svd.pyx"],
-		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
+		extra_compile_args=['-fopenmp', '-O3', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
@@ -30,7 +30,7 @@ extensions = [
 	Extension(
 		"fastmixture.shared",
 		["fastmixture/shared.pyx"],
-		extra_compile_args=['-fopenmp', '-g0', '-Wno-unreachable-code'],
+		extra_compile_args=['-fopenmp', '-O3', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
