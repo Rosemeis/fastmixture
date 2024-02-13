@@ -32,21 +32,21 @@ parser.add_argument("-e", "--tole", metavar="FLOAT", type=float, default=0.5,
 	help="Tolerance in log-likelihood units between c-th iterations (0.5)")
 parser.add_argument("-c", "--check", metavar="INT", type=int, default=10,
 	help="Iteration to estimate log-likelihood for convergence check (10)")
-parser.add_argument("--batches", metavar="INT", type=int, default=64,
-	help="Number of mini-batches (64)")
+parser.add_argument("--batches", metavar="INT", type=int, default=32,
+	help="Number of mini-batches (32)")
 parser.add_argument("--power", metavar="INT", type=int, default=11,
 	help="Number of power iterations in randomized SVD (11)")
-parser.add_argument("--svd_batch", metavar="INT", type=int, default=8192,
+parser.add_argument("--svd-batch", metavar="INT", type=int, default=8192,
 	help="Number of SNPs in SVD batches (8192)")
-parser.add_argument("--als_iter", metavar="INT", type=int, default=1000,
+parser.add_argument("--als-iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations in ALS (1000)")
-parser.add_argument("--als_tole", metavar="FLOAT", type=float, default=1e-4,
+parser.add_argument("--als-tole", metavar="FLOAT", type=float, default=1e-4,
 	help="Tolerance for RMSE of P between iterations (1e-4)")
-parser.add_argument("--als_save", action="store_true",
+parser.add_argument("--als-save", action="store_true",
 	help="Save initialized factor matrices from ALS")
-parser.add_argument("--no_freqs", action="store_true",
+parser.add_argument("--no-freqs", action="store_true",
 	help="Do not save P-matrix")
-parser.add_argument("--no_batch", action="store_true",
+parser.add_argument("--no-batch", action="store_true",
 	help="DEBUG: Turn off mini-batch updates")
 parser.add_argument("--verbose", action="store_true",
 	help="DEBUG: More detailed output for debugging.")
