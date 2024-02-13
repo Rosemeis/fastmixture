@@ -15,7 +15,7 @@ from time import time
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
 parser.add_argument("--version", action="version",
-	version="%(prog)s v0.3")
+	version="%(prog)s v0.4")
 parser.add_argument("-b", "--bfile", metavar="PLINK",
 	help="Prefix for PLINK files (.bed, .bim, .fam)")
 parser.add_argument("-k", "--K", metavar="INT", type=int,
@@ -32,16 +32,16 @@ parser.add_argument("-e", "--tole", metavar="FLOAT", type=float, default=0.5,
 	help="Tolerance in log-likelihood units between c-th iterations (0.5)")
 parser.add_argument("-c", "--check", metavar="INT", type=int, default=10,
 	help="Iteration to estimate log-likelihood for convergence check (10)")
-parser.add_argument("--batches", metavar="INT", type=int, default=32,
-	help="Number of mini-batches (32)")
+parser.add_argument("--batches", metavar="INT", type=int, default=64,
+	help="Number of mini-batches (64)")
 parser.add_argument("--power", metavar="INT", type=int, default=11,
 	help="Number of power iterations in randomized SVD (11)")
-parser.add_argument("--svd_batch", metavar="INT", type=int, default=4096,
-	help="Number of SNPs in SVD batches (4096)")
+parser.add_argument("--svd_batch", metavar="INT", type=int, default=8192,
+	help="Number of SNPs in SVD batches (8192)")
 parser.add_argument("--als_iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations in ALS (1000)")
-parser.add_argument("--als_tole", metavar="FLOAT", type=float, default=1e-5,
-	help="Tolerance for RMSE of P between iterations (1e-5)")
+parser.add_argument("--als_tole", metavar="FLOAT", type=float, default=1e-4,
+	help="Tolerance for RMSE of P between iterations (1e-4)")
 parser.add_argument("--als_save", action="store_true",
 	help="Save initialized factor matrices from ALS")
 parser.add_argument("--no_freqs", action="store_true",
@@ -59,7 +59,7 @@ def main():
 		parser.print_help()
 		sys.exit()
 	print("-------------------------------------------------")
-	print(f"fastmixture v0.3")
+	print(f"fastmixture v0.4")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
 	print(f"K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
@@ -74,7 +74,7 @@ def main():
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "batches"]
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
-		log.write("fastmixture v0.3\n")
+		log.write("fastmixture v0.4\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
 		log.write(f"Directory: {os.getcwd()}\n")
 		log.write("Options:\n")
@@ -98,7 +98,6 @@ def main():
 	import numpy as np
 	from math import ceil
 	from fastmixture import em
-	from fastmixture import em_batch
 	from fastmixture import functions
 	from fastmixture import shared
 
@@ -186,9 +185,13 @@ def main():
 	for it in range(1, args.iter+1):
 		if batch: # SQUAREM mini-batch updates
 			B_list = np.array_split(np.random.permutation(M), batch_N)
-			for b in B_list:
+			for b in np.arange(batch_N):
+				if b == (batch_N-1):
+					B = np.sort(np.concatenate((B_list[b], B_list[0])))
+				else:
+					B = np.sort(np.concatenate((B_list[b], B_list[b+1])))
 				functions.squaremBatch(G, P, Q, a, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
-					dQ1, dQ2, dQ3, np.sort(b), args.threads)
+					dQ1, dQ2, dQ3, B, args.threads)
 		else:
 			# SQUAREM full update
 			functions.squarem(G, P, Q, a, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
@@ -207,7 +210,7 @@ def main():
 			if batch:
 				if lkCur < batch_L:
 					batch_N = batch_N//2
-					if batch_N > 1:
+					if batch_N > 2:
 						print(f"Using {batch_N} mini-batches.")
 					else:
 						batch = False
@@ -238,7 +241,7 @@ def main():
 		if converged:
 			log.write(f"Converged in {it} iterations.\n")
 		else:
-			log.write("EM algorithm did not converge!\n")
+			log.write("EM algorithm did not converge in {args.iter} iterations!\n")
 		log.write(f"Total elapsed time: {t_min}m{t_sec}s\n")
 		log.write(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q\n")
 		if not args.no_freqs:

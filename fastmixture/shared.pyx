@@ -7,7 +7,8 @@ from libc.math cimport log, sqrt
 
 ##### fastmixture ######
 # Estimate minor allele frequencies
-cpdef void estimateFreq(unsigned char[:,::1] G, double[::1] f, int N, int t) nogil:
+cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f, const int N, \
+		const int t) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int B = G.shape[1]
@@ -32,8 +33,8 @@ cpdef void estimateFreq(unsigned char[:,::1] G, double[::1] f, int N, int t) nog
 		f[j] /= (2.0*n)
 
 # Log-likelihood
-cpdef void loglike(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
-		double[::1] lkVec, int t) nogil:
+cpdef void loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
+		const double[:,::1] Q, double[::1] lkVec, const int t) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int B = G.shape[1]
@@ -62,8 +63,8 @@ cpdef void loglike(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 					break
 
 # Sum-of-squares used for evaluation 
-cpdef void sumSquare(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
-		double[::1] lsVec, int t) nogil:
+cpdef void sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
+		const double[:,::1] Q, double[::1] lsVec, const int t) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int B = G.shape[1]

@@ -6,8 +6,8 @@ from libc.math cimport sqrt
 
 ##### Randomized SVD - PCAone method #####
 # Load centered chunk from PLINK file for SVD
-cpdef void plinkChunk(unsigned char[:,::1] G, double[:,::1] X, double[::1] f, \
-		int M_b, int t) nogil:
+cpdef void plinkChunk(const unsigned char[:,::1] G, double[:,::1] X, \
+		const double[::1] f, const int M_b, const int t) noexcept nogil:
 	cdef:
 		int M = X.shape[0]
 		int N = X.shape[1]
@@ -31,7 +31,7 @@ cpdef void plinkChunk(unsigned char[:,::1] G, double[:,::1] X, double[::1] f, \
 					break
 
 # Root-mean square error between two Q matrices
-cpdef double rmse(double[:,::1] A, double[:,::1] B) nogil:
+cpdef double rmse(const double[:,::1] A, const double[:,::1] B) noexcept nogil:
 	cdef:
 		int N = A.shape[0]
 		int K = A.shape[1]
@@ -43,7 +43,7 @@ cpdef double rmse(double[:,::1] A, double[:,::1] B) nogil:
 	return sqrt(res/<double>(N*K))
 
 # Map2domain
-cpdef void map2domain(double[:,::1] Q) nogil:
+cpdef void map2domain(double[:,::1] Q) noexcept nogil:
 	cdef:
 		int N = Q.shape[0]
 		int K = Q.shape[1]

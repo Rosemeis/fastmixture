@@ -16,7 +16,7 @@ def extract_length(filename):
 def randomizedSVD(G, f, N, K, batch, power, seed, threads):
 	M = G.shape[0]
 	W = ceil(M/batch)
-	L = K + 16
+	L = K + 20
 	rng = np.random.default_rng(seed)
 	O = rng.standard_normal(size=(N, L))
 	A = np.zeros((M, L))

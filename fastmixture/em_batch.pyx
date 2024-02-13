@@ -1,20 +1,21 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True
 import numpy as np
 cimport numpy as np
-from cpython.mem cimport PyMem_RawMalloc, PyMem_RawFree
+from cpython.mem cimport PyMem_RawCalloc, PyMem_RawMalloc, PyMem_RawFree
 from cython.parallel import prange, parallel
 from libc.math cimport log, sqrt
 
 ##### Stochastic EM algorithm #####
 # Update P
-cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
-		double[:,::1] Qa, double[:,::1] Qb, double[::1] a, long[::1] idx, int t):
+cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
+		const double[:,::1] Q, double[:,::1] Qa, double[:,::1] Qb, double[::1] a, \
+		const long[::1] idx, const int t):
 	cdef:
 		int M = idx.shape[0]
 		int B = G.shape[1]
 		int N = Q.shape[0]
 		int K = Q.shape[1]
-		int d, i, j, k, x, y, i0, k0, b, bytepart
+		int d, i, j, k, x, y, b, bytepart
 		double g, h
 		double* a_thr
 		double* Pa_thr
@@ -25,16 +26,11 @@ cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		unsigned char mask = 3
 		unsigned char byte
 	with nogil, parallel(num_threads=t):
-		a_thr = <double*>PyMem_RawMalloc(sizeof(double)*N)
+		a_thr = <double*>PyMem_RawCalloc(N, sizeof(double))
 		Pa_thr = <double*>PyMem_RawMalloc(sizeof(double)*K)
 		Pb_thr = <double*>PyMem_RawMalloc(sizeof(double)*K)
-		Qa_thr = <double*>PyMem_RawMalloc(sizeof(double)*N*K)
-		Qb_thr = <double*>PyMem_RawMalloc(sizeof(double)*N*K)
-		for i0 in range(N):
-			a_thr[i0] = 0.0
-			for k0 in range(K):
-				Qa_thr[i0*K+k0] = 0.0
-				Qb_thr[i0*K+k0] = 0.0
+		Qa_thr = <double*>PyMem_RawCalloc(N*K, sizeof(double))
+		Qb_thr = <double*>PyMem_RawCalloc(N*K, sizeof(double))
 		for j in prange(M):
 			for k in range(K):
 				Pa_thr[k] = 0.0
@@ -77,15 +73,15 @@ cpdef void updateP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		PyMem_RawFree(Qb_thr)
 
 # Update P in acceleration
-cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
-		double[:,::1] Qa, double[:,::1] Qb, double[:,::1] D, double[::1] a, \
-		long[::1] idx, int t):
+cpdef void accelP(const unsigned char[:,::1] G, double[:,::1] P, \
+		const double[:,::1] Q, double[:,::1] Qa, double[:,::1] Qb, double[:,::1] D, \
+		double[::1] a, const long[::1] idx, const int t):
 	cdef:
 		int M = idx.shape[0]
 		int B = G.shape[1]
 		int N = Q.shape[0]
 		int K = Q.shape[1]
-		int d, i, j, k, x, y, i0, k0, b, bytepart
+		int d, i, j, k, x, y, b, bytepart
 		double g, h, P0
 		double* a_thr
 		double* Pa_thr
@@ -96,16 +92,11 @@ cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		unsigned char mask = 3
 		unsigned char byte
 	with nogil, parallel(num_threads=t):
-		a_thr = <double*>PyMem_RawMalloc(sizeof(double)*N)
+		a_thr = <double*>PyMem_RawCalloc(N, sizeof(double))
 		Pa_thr = <double*>PyMem_RawMalloc(sizeof(double)*K)
 		Pb_thr = <double*>PyMem_RawMalloc(sizeof(double)*K)
-		Qa_thr = <double*>PyMem_RawMalloc(sizeof(double)*N*K)
-		Qb_thr = <double*>PyMem_RawMalloc(sizeof(double)*N*K)
-		for i0 in range(N):
-			a_thr[i0] = 0.0
-			for k0 in range(K):
-				Qa_thr[i0*K+k0] = 0.0
-				Qb_thr[i0*K+k0] = 0.0
+		Qa_thr = <double*>PyMem_RawCalloc(N*K, sizeof(double))
+		Qb_thr = <double*>PyMem_RawCalloc(N*K, sizeof(double))
 		for j in prange(M):
 			for k in range(K):
 				Pa_thr[k] = 0.0
@@ -150,8 +141,9 @@ cpdef void accelP(unsigned char[:,::1] G, double[:,::1] P, double[:,::1] Q, \
 		PyMem_RawFree(Qb_thr)
 
 # Accelerated jump for P (SQUAREM)
-cpdef void alphaP(double[:,::1] P, double[:,::1] P0, double[:,::1] D1, \
-		double[:,::1] D2, double[:,::1] D3, long[::1] idx, int t) nogil:
+cpdef void alphaP(double[:,::1] P, const double[:,::1] P0, const double[:,::1] D1, \
+		const double[:,::1] D2, double[:,::1] D3, const long[::1] idx, const int t) \
+		noexcept nogil:
 	cdef:
 		int M = idx.shape[0]
 		int K = P.shape[1]
