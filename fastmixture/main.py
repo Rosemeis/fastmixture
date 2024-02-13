@@ -186,12 +186,8 @@ def main():
 		if batch: # SQUAREM mini-batch updates
 			B_list = np.array_split(np.random.permutation(M), batch_N)
 			for b in np.arange(batch_N):
-				if b == (batch_N-1):
-					B = np.sort(np.concatenate((B_list[b], B_list[0])))
-				else:
-					B = np.sort(np.concatenate((B_list[b], B_list[b+1])))
 				functions.squaremBatch(G, P, Q, a, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
-					dQ1, dQ2, dQ3, B, args.threads)
+					dQ1, dQ2, dQ3, np.sort(B_list[b]), args.threads)
 		else:
 			# SQUAREM full update
 			functions.squarem(G, P, Q, a, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
