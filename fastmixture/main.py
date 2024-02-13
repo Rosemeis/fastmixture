@@ -206,7 +206,7 @@ def main():
 			if batch:
 				if lkCur < batch_L:
 					batch_N = batch_N//2
-					if batch_N > 2:
+					if batch_N > 1:
 						print(f"Using {batch_N} mini-batches.")
 					else:
 						batch = False
