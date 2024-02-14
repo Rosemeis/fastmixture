@@ -40,8 +40,8 @@ parser.add_argument("--svd-batch", metavar="INT", type=int, default=8192,
 	help="Number of SNPs in SVD batches (8192)")
 parser.add_argument("--als-iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations in ALS (1000)")
-parser.add_argument("--als-tole", metavar="FLOAT", type=float, default=1e-4,
-	help="Tolerance for RMSE of P between iterations (1e-4)")
+parser.add_argument("--als-tole", metavar="FLOAT", type=float, default=1e-5,
+	help="Tolerance for RMSE of P between iterations (1e-5)")
 parser.add_argument("--als-save", action="store_true",
 	help="Save initialized factor matrices from ALS")
 parser.add_argument("--no-freqs", action="store_true",
