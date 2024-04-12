@@ -1,4 +1,4 @@
-# fastmixture
+# fastmixture (v0.5)
 
 ## Install and build
 ```bash
