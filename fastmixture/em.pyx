@@ -12,53 +12,41 @@ cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 		double[::1] a, const int t):
 	cdef:
 		int M = G.shape[0]
-		int B = G.shape[1]
-		int N = Q.shape[0]
+		int N = G.shape[1]
 		int K = Q.shape[1]
-		int i, j, k, x, y, b, bytepart
+		int i, j, k, x, y
 		double g, h
 		double* a_thr
 		double* Pa_thr
 		double* Pb_thr
 		double* Qa_thr
 		double* Qb_thr
-		unsigned char[4] recode = [0, 9, 1, 2]
-		unsigned char mask = 3
-		unsigned char byte
 	with nogil, parallel(num_threads=t):
 		a_thr = <double*>PyMem_RawCalloc(N, sizeof(double))
-		Pa_thr = <double*>PyMem_RawMalloc(sizeof(double)*K)
-		Pb_thr = <double*>PyMem_RawMalloc(sizeof(double)*K)
+		Pa_thr = <double*>PyMem_RawCalloc(K, sizeof(double))
+		Pb_thr = <double*>PyMem_RawCalloc(K, sizeof(double))
 		Qa_thr = <double*>PyMem_RawCalloc(N*K, sizeof(double))
 		Qb_thr = <double*>PyMem_RawCalloc(N*K, sizeof(double))
 		for j in prange(M):
-			for k in range(K):
-				Pa_thr[k] = 0.0
-				Pb_thr[k] = 0.0
-			i = 0
-			for b in range(B):
-				byte = G[j,b]
-				for bytepart in range(4):
-					if recode[byte & mask] != 9:
-						g = <double>recode[byte & mask]
-						h = 0.0
-						for k in range(K):
-							h = h + Q[i,k]*P[j,k]
-						for k in range(K):
-							Pa_thr[k] = Pa_thr[k] + g*Q[i,k]/h
-							Pb_thr[k] = Pb_thr[k] + (2-g)*Q[i,k]/(1-h)
-							Qa_thr[i*K+k] = Qa_thr[i*K+k] + g*P[j,k]/h
-							Qb_thr[i*K+k] = Qb_thr[i*K+k] + (2-g)*(1-P[j,k])/(1-h)
-						a_thr[i] = a_thr[i] + 1.0
-					byte = byte >> 2
-					i = i + 1
-					if i == N:
-						break
+			for i in range(N):
+				if G[j,i] != 9:
+					g = <double>G[j,i]
+					h = 0.0
+					for k in range(K):
+						h = h + Q[i,k]*P[j,k]
+					for k in range(K):
+						Pa_thr[k] = Pa_thr[k] + g*Q[i,k]/h
+						Pb_thr[k] = Pb_thr[k] + (2-g)*Q[i,k]/(1-h)
+						Qa_thr[i*K+k] = Qa_thr[i*K+k] + g*P[j,k]/h
+						Qb_thr[i*K+k] = Qb_thr[i*K+k] + (2-g)*(1-P[j,k])/(1-h)
+					a_thr[i] = a_thr[i] + 1.0
 			for k in range(K):
 				Pa_thr[k] = Pa_thr[k]*P[j,k]
 				Pb_thr[k] = Pb_thr[k]*(1-P[j,k])
 				P[j,k] = Pa_thr[k]/(Pa_thr[k] + Pb_thr[k])
 				P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
+				Pa_thr[k] = 0.0
+				Pb_thr[k] = 0.0
 		with gil:
 			for x in range(N):
 				a[x] += a_thr[x]
@@ -80,45 +68,32 @@ cpdef void accelP(const unsigned char[:,::1] G, double[:,::1] P, \
 		int B = G.shape[1]
 		int N = Q.shape[0]
 		int K = P.shape[1]
-		int i, j, k, x, y, b, bytepart
+		int i, j, k, x, y
 		double g, h, P0
 		double* a_thr
 		double* Pa_thr
 		double* Pb_thr
 		double* Qa_thr
 		double* Qb_thr
-		unsigned char[4] recode = [0, 9, 1, 2]
-		unsigned char mask = 3
-		unsigned char byte
 	with nogil, parallel(num_threads=t):
 		a_thr = <double*>PyMem_RawCalloc(N, sizeof(double))
-		Pa_thr = <double*>PyMem_RawMalloc(sizeof(double)*K)
-		Pb_thr = <double*>PyMem_RawMalloc(sizeof(double)*K)
+		Pa_thr = <double*>PyMem_RawCalloc(K, sizeof(double))
+		Pb_thr = <double*>PyMem_RawCalloc(K, sizeof(double))
 		Qa_thr = <double*>PyMem_RawCalloc(N*K, sizeof(double))
 		Qb_thr = <double*>PyMem_RawCalloc(N*K, sizeof(double))
 		for j in prange(M):
-			for k in range(K):
-				Pa_thr[k] = 0.0
-				Pb_thr[k] = 0.0
-			i = 0
-			for b in range(B):
-				byte = G[j,b]
-				for bytepart in range(4):
-					if recode[byte & mask] != 9:
-						g = <double>recode[byte & mask]
-						h = 0.0
-						for k in range(K):
-							h = h + Q[i,k]*P[j,k]
-						for k in range(K):
-							Pa_thr[k] = Pa_thr[k] + g*Q[i,k]/h
-							Pb_thr[k] = Pb_thr[k] + (2-g)*Q[i,k]/(1-h)
-							Qa_thr[i*K+k] = Qa_thr[i*K+k] + g*P[j,k]/h
-							Qb_thr[i*K+k] = Qb_thr[i*K+k] + (2-g)*(1-P[j,k])/(1-h)
-						a_thr[i] = a_thr[i] + 1.0
-					byte = byte >> 2
-					i = i + 1
-					if i == N:
-						break
+			for i in range(N):
+				if G[j,i] != 9:
+					g = <double>G[j,i]
+					h = 0.0
+					for k in range(K):
+						h = h + Q[i,k]*P[j,k]
+					for k in range(K):
+						Pa_thr[k] = Pa_thr[k] + g*Q[i,k]/h
+						Pb_thr[k] = Pb_thr[k] + (2-g)*Q[i,k]/(1-h)
+						Qa_thr[i*K+k] = Qa_thr[i*K+k] + g*P[j,k]/h
+						Qb_thr[i*K+k] = Qb_thr[i*K+k] + (2-g)*(1-P[j,k])/(1-h)
+					a_thr[i] = a_thr[i] + 1.0
 			for k in range(K):
 				P0 = P[j,k]
 				Pa_thr[k] = Pa_thr[k]*P[j,k]
@@ -126,6 +101,8 @@ cpdef void accelP(const unsigned char[:,::1] G, double[:,::1] P, \
 				P[j,k] = Pa_thr[k]/(Pa_thr[k] + Pb_thr[k])
 				P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
 				D[j,k] = P[j,k] - P0
+				Pa_thr[k] = 0.0
+				Pb_thr[k] = 0.0
 		with gil:
 			for x in range(N):
 				a[x] += a_thr[x]

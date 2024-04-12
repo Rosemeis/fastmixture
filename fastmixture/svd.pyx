@@ -11,24 +11,13 @@ cpdef void plinkChunk(const unsigned char[:,::1] G, double[:,::1] X, \
 	cdef:
 		int M = X.shape[0]
 		int N = X.shape[1]
-		int B = G.shape[1]
-		int i, j, b, bytepart
-		unsigned char[4] recode = [0, 9, 1, 2]
-		unsigned char mask = 3
-		unsigned char byte
+		int i, j
 	for j in prange(M, num_threads=t):
-		i = 0
-		for b in range(B):
-			byte = G[M_b+j,b]
-			for bytepart in range(4):
-				if recode[byte & mask] != 9:
-					X[j,i] = <double>recode[byte & mask] - 2.0*f[M_b+j]
-				else:
-					X[j,i] = 0.0
-				byte = byte >> 2
-				i = i + 1
-				if i == N:
-					break
+		for i in range(N):
+			if G[j,i] != 9:
+				X[j,i] = <double>G[M_b+j,i] - 2.0*f[M_b+j]
+			else:
+				X[j,i] = 0.0
 
 # Root-mean square error between two Q matrices
 cpdef double rmse(const double[:,::1] A, const double[:,::1] B) noexcept nogil:
@@ -53,6 +42,6 @@ cpdef void map2domain(double[:,::1] Q) noexcept nogil:
 		sumQ = 0.0
 		for k in range(K):
 			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
-			sumQ = sumQ + Q[i,k]
+			sumQ += Q[i,k]
 		for k in range(K):
 			Q[i,k] /= sumQ

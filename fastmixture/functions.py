@@ -13,8 +13,9 @@ def extract_length(filename):
 	return int(result.split()[0])
 
 ### Randomized SVD (PCAone Halko)
-def randomizedSVD(G, f, N, K, batch, power, seed, threads):
+def randomizedSVD(G, f, K, batch, power, seed, threads):
 	M = G.shape[0]
+	N = G.shape[1]
 	W = ceil(M/batch)
 	L = K + 20
 	rng = np.random.default_rng(seed)
@@ -44,7 +45,7 @@ def randomizedSVD(G, f, N, K, batch, power, seed, threads):
 	return U, V
 
 ### Alternating least square (ALS) for initializing Q and F
-def extractFactor(U, V, f, K, iterations, tole, seed, verbose):
+def extractFactor(U, V, f, K, iterations, tole, seed):
 	rng = np.random.default_rng(seed)
 	M = U.shape[0]
 	N = V.shape[0]
@@ -69,8 +70,6 @@ def extractFactor(U, V, f, K, iterations, tole, seed, verbose):
 		svd.map2domain(Q)
 
 		# Check convergence
-		if verbose:
-			print(f"ALS ({it}): {round(svd.rmse(Q, Q0), 8)}")
 		if svd.rmse(Q, Q0) < tole:
 			break
 	return P, Q

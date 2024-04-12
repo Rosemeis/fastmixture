@@ -51,12 +51,14 @@ from fastmixture import functions
 # Finding length of .fam and .bim file and finding chromosome indices
 N = functions.extract_length(f"{args.bfile}.fam")
 M = functions.extract_length(f"{args.bfile}.bim")
+G = np.zeros((M, N), dtype=np.uint8)
 
 # Read .bed file
 with open(f"{args.bfile}.bed", "rb") as bed:
-	G = np.fromfile(bed, dtype=np.uint8, offset=3)
-B = ceil(N/4) # Length of bytes to describe n individuals
-G.shape = (M, B)
+	B = np.fromfile(bed, dtype=np.uint8, offset=3)
+N_bytes = ceil(N/4) # Length of bytes to describe N individuals
+shared.expandGeno(B, G, N_bytes, args.threads)
+del B
 
 ### Initalize parameters
 lVec = np.zeros(M)

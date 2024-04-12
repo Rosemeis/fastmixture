@@ -1,35 +1,45 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True
 import numpy as np
 cimport numpy as np
-from cpython.mem cimport PyMem_RawMalloc, PyMem_RawFree
-from cython.parallel import prange, parallel
-from libc.math cimport log, sqrt
+from cython.parallel import prange
+from libc.math cimport log
 
 ##### fastmixture ######
-# Estimate minor allele frequencies
-cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f, const int N, \
-		const int t) noexcept nogil:
+# Expand data into full genotype matrix
+cpdef void expandGeno(const unsigned char[::1] B, unsigned char[:,::1] G, \
+		const int N_bytes, const int t) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
-		int B = G.shape[1]
+		int N = G.shape[1]
 		int i, j, b, bytepart
-		double g, n
 		unsigned char[4] recode = [0, 9, 1, 2]
 		unsigned char mask = 3
 		unsigned char byte
 	for j in prange(M, num_threads=t):
 		i = 0
-		n = 0.0
-		for b in range(B):
-			byte = G[j,b]
+		for b in range(N_bytes):
+			byte = B[j*N_bytes + b]
 			for bytepart in range(4):
-				if recode[byte & mask] != 9:
-					f[j] += <double>recode[byte & mask]
-					n = n + 1.0
+				G[j,i] = recode[byte & mask]
 				byte = byte >> 2
 				i = i + 1
 				if i == N:
 					break
+
+# Estimate minor allele frequencies
+cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f, \
+		const int t) noexcept nogil:
+	cdef:
+		int M = G.shape[0]
+		int N = G.shape[1]
+		int i, j
+		double n
+	for j in prange(M, num_threads=t):
+		n = 0.0
+		for i in range(N):
+			if G[j,i] != 9:
+				f[j] += <double>G[j,i]
+				n = n + 1.0
 		f[j] /= (2.0*n)
 
 # Log-likelihood
@@ -37,57 +47,35 @@ cpdef void loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
 		const double[:,::1] Q, double[::1] lkVec, const int t) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
-		int B = G.shape[1]
-		int N = Q.shape[0]
+		int N = G.shape[1]
 		int K = Q.shape[1]
-		int i, j, k, b, bytepart
+		int i, j, k
 		double h, g
-		unsigned char[4] recode = [0, 9, 1, 2]
-		unsigned char mask = 3
-		unsigned char byte
 	for j in prange(M, num_threads=t):
 		lkVec[j] = 0.0
-		i = 0
-		for b in range(B):
-			byte = G[j,b]
-			for bytepart in range(4):
-				if recode[byte & mask] != 9:
-					g = <double>recode[byte & mask]
-					h = 0.0
-					for k in range(K):
-						h = h + Q[i,k]*P[j,k]
-					lkVec[j] += g*log(h) + (2-g)*log(1-h)
-				byte = byte >> 2
-				i = i + 1
-				if i == N:
-					break
+		for i in range(N):
+			if G[j,i] != 9:
+				g = <double>G[j,i]
+				h = 0.0
+				for k in range(K):
+					h = h + Q[i,k]*P[j,k]
+				lkVec[j] += g*log(h) + (2-g)*log(1-h)
 
 # Sum-of-squares used for evaluation 
 cpdef void sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
 		const double[:,::1] Q, double[::1] lsVec, const int t) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
-		int B = G.shape[1]
-		int N = Q.shape[0]
+		int N = G.shape[1]
 		int K = Q.shape[1]
-		int i, j, k, b, bytepart
+		int i, j, k
 		double h, g
-		unsigned char[4] recode = [0, 9, 1, 2]
-		unsigned char mask = 3
-		unsigned char byte
 	for j in prange(M, num_threads=t):
 		lsVec[j] = 0.0
-		i = 0
-		for b in range(B):
-			byte = G[j,b]
-			for bytepart in range(4):
-				if recode[byte & mask] != 9:
-					g = <double>recode[byte & mask]
-					h = 0.0
-					for k in range(K):
-						h = h + Q[i,k]*P[j,k]
-					lsVec[j] += (g - 2*h)*(g - 2*h)
-				byte = byte >> 2
-				i = i + 1
-				if i == N:
-					break
+		for i in range(N):
+			if G[j,i] != 9:
+				g = <double>G[j,i]
+				h = 0.0
+				for k in range(K):
+					h = h + Q[i,k]*P[j,k]
+				lsVec[j] += (g-2*h)*(g-2*h)
