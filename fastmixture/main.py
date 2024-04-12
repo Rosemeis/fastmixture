@@ -186,8 +186,8 @@ def main():
 				f"({round(time()-ts,1)}s)", flush=True)
 			if batch:
 				if (lkCur < batch_L) or (abs(lkCur - batch_L) < args.tole*check_B):
+					lkCur = float('inf')
 					batch_N = batch_N[1:]
-					batch_L = float('inf')
 					check_B = len(batch_N)
 					if check_B > 1:
 						print(f"Using {check_B} cyclic batch levels.")
