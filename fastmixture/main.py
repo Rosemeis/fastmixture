@@ -32,8 +32,8 @@ parser.add_argument("--tole", metavar="FLOAT", type=float, default=0.1,
 	help="Tolerance in log-likelihood units between iterations (0.1)")
 parser.add_argument("--q-tole", metavar="FLOAT", type=float, default=1e-5,
 	help="Tolerance in RMSE for Q between iterations (1e-5)")
-parser.add_argument("--levels", metavar="INT", type=int,
-	help="Number of cyclic batch levels for powers of 2")
+parser.add_argument("--levels", metavar="INT", type=int, default=8,
+	help="Number of cyclic batch levels for powers of 2 (8)")
 parser.add_argument("--power", metavar="INT", type=int, default=11,
 	help="Number of power iterations in randomized SVD (11)")
 parser.add_argument("--svd-batch", metavar="INT", type=int, default=8192,
@@ -187,7 +187,7 @@ def main():
 			print(f"({it+1})\tLog-like: {round(lkCur,1)}\t" + \
 				f"({round(time()-ts,1)}s)", flush=True)
 			if batch:
-				if (lkCur < batch_L) or (abs(lkCur - batch_L) < args.tole*check_B):
+				if (lkCur < batch_L) or (abs(lkCur - batch_L) < args.tole):
 					batch_L = float('-inf')
 					batch_N = batch_N[1:]
 					check_B = len(batch_N)
