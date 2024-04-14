@@ -22,14 +22,16 @@ parser.add_argument("-k", "--K", metavar="INT", type=int,
 	help="Number of ancestral components")
 parser.add_argument("-t", "--threads", metavar="INT", type=int, default=1,
 	help="Number of threads (1)")
-parser.add_argument("-o", "--out", metavar="OUTPUT", default="fastmixture",
-	help="Prefix output name (fastmixture)")
 parser.add_argument("-s", "--seed", metavar="INT", type=int, default=42,
 	help="Set random seed (42)")
-parser.add_argument("-i", "--iter", metavar="INT", type=int, default=1000,
+parser.add_argument("-o", "--out", metavar="OUTPUT", default="fastmixture",
+	help="Prefix output name (fastmixture)")
+parser.add_argument("--iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations (1000)")
-parser.add_argument("-e", "--tole", metavar="FLOAT", type=float, default=0.1,
+parser.add_argument("--tole", metavar="FLOAT", type=float, default=0.1,
 	help="Tolerance in log-likelihood units between iterations (0.1)")
+parser.add_argument("--q-tole", metavar="FLOAT", type=float, default=1e-5,
+	help="Tolerance in RMSE for Q between iterations (1e-5)")
 parser.add_argument("--levels", metavar="INT", type=int, default=5,
 	help="Number of cyclic batch levels for powers of 2 (5)")
 parser.add_argument("--power", metavar="INT", type=int, default=11,
@@ -86,7 +88,7 @@ def main():
 
 	# Load numerical libraries
 	import numpy as np
-	from math import ceil, log
+	from math import ceil
 	from fastmixture import em
 	from fastmixture import functions
 	from fastmixture import shared
@@ -185,24 +187,28 @@ def main():
 			print(f"({it+1})\tLog-like: {round(lkCur,1)}\t" + \
 				f"({round(time()-ts,1)}s)", flush=True)
 			if batch:
-				if (lkCur < batch_L) or (abs(lkCur - batch_L) < args.tole*check_B):
-					batch_L = float('inf')
+				if (lkCur < batch_L) or (abs(lkCur - batch_L) < args.tole):
+					batch_L = float('-inf')
 					batch_N = batch_N[1:]
 					check_B = len(batch_N)
 					if check_B > 1:
 						print(f"Using {check_B} cyclic batch levels.")
 						check = 0
 					else:
-						batch = False
 						print("Running non-cyclic SQUAREM updates.")
+						batch = False
+						del batch_N, B_list
+						Q_pre = np.copy(Q)
 				else:
 					batch_L = lkCur
 			else:
-				if (abs(lkCur - lkPre) < args.tole):
+				rmseQ = shared.rmse(Q, Q_pre)
+				if (abs(lkCur - lkPre) < args.tole) or (rmseQ < args.q_tole):
 					print("Converged!")
 					print(f"Final log-likelihood: {round(lkCur,1)}")
 					converged = True
 					break
+				np.copyto(Q_pre, Q, casting="no")
 			lkPre = lkCur
 			ts = time()
 		check += 1

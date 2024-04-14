@@ -2,7 +2,7 @@
 import numpy as np
 cimport numpy as np
 from cython.parallel import prange
-from libc.math cimport log
+from libc.math cimport log, sqrt
 
 ##### fastmixture ######
 # Expand data into full genotype matrix
@@ -60,6 +60,18 @@ cpdef void loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
 				for k in range(K):
 					h = h + Q[i,k]*P[j,k]
 				lkVec[j] += g*log(h) + (2-g)*log(1-h)
+
+# Root-mean-square error
+cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nogil:
+	cdef:
+		int N = Q.shape[0]
+		int K = Q.shape[1]
+		int i, k
+		double r = 0.0
+	for i in range(N):
+		for k in range(K):
+			r += (Q[i,k] - Q_pre[i,k])*(Q[i,k] - Q_pre[i,k])
+	return sqrt(r/<double>(N*K))
 
 # Sum-of-squares used for evaluation 
 cpdef void sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
