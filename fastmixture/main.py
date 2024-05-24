@@ -63,7 +63,6 @@ def main():
 	print("-------------------------------------------------\n")
 	assert args.bfile is not None, "No input data (--bfile)!"
 	assert args.K > 1, "Please set K > 1 (--K)!"
-	assert args.prime > 0, "Please set priming iterations > 0 (--prime)!"
 	start = time()
 
 	# Create log-file of arguments
@@ -139,18 +138,11 @@ def main():
 	print(f"Initial loglike: {round(L_pre,1)}\n")
 
 	# Mini-batch parameters for stochastic EM
-	print("Estimating Q and P using mini-batch EM.")
+	batch = True
+	batch_L = L_pre
 
 	### EM algorithm
 	Q_new = np.zeros((N, args.K))
-
-	# Prime iteration
-	ts = time()
-	for _ in range(args.prime):
-		em.updateP(G, P, Q, Q_new, args.threads)
-		em.updateQ(Q, Q_new, M, args.threads)
-	print(f"Performed {args.prime} priming iterations\t" + \
-				f"({round(time()-ts,1)}s)", flush=True)
 
 	# Setup containers for EM algorithm
 	converged = False
@@ -163,11 +155,20 @@ def main():
 	dQ2 = np.zeros((N, args.K))
 	dQ3 = np.zeros((N, args.K))
 
-	# fastmixture algorithm
-	print(f"Using {args.batches} mini-batches.")
-	batch = True
-	batch_L = L_pre
+	# Accelerated priming iteration
 	ts = time()
+	em.updateP(G, P, Q, Q_new, args.threads)
+	em.updateQ(Q, Q_new, M, args.threads)
+	functions.squarem(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, dQ1, dQ2, dQ3, \
+		args.threads)
+	em.updateP(G, P, Q, Q_new, args.threads)
+	em.updateQ(Q, Q_new, M, args.threads)
+	print(f"Performed priming iteration\t({round(time()-ts,1)}s)\n", flush=True)
+
+	# fastmixture algorithm
+	ts = time()
+	print("Estimating Q and P using mini-batch EM.")
+	print(f"Using {args.batches} mini-batches.")
 	np.random.seed(args.seed)
 	for it in range(args.iter):
 		if batch: # SQUAREM mini-batch updates
