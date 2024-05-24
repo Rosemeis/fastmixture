@@ -28,12 +28,14 @@ parser.add_argument("-o", "--out", metavar="OUTPUT", default="fastmixture",
 	help="Prefix output name (fastmixture)")
 parser.add_argument("--iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations (1000)")
-parser.add_argument("--tole", metavar="FLOAT", type=float, default=0.1,
-	help="Tolerance in log-likelihood units between iterations (0.1)")
-parser.add_argument("--q-tole", metavar="FLOAT", type=float, default=1e-5,
-	help="Tolerance in RMSE for Q between iterations (1e-5)")
-parser.add_argument("--levels", metavar="INT", type=int, default=8,
-	help="Number of cyclic batch levels for powers of 2 (8)")
+parser.add_argument("--tole", metavar="FLOAT", type=float, default=0.5,
+	help="Tolerance in log-likelihood units between iterations (0.5)")
+parser.add_argument("--q-tole", metavar="FLOAT", type=float, default=1e-6,
+	help="Tolerance in RMSE for Q between iterations (1e-6)")
+parser.add_argument("--batches", metavar="INT", type=int, default=32,
+	help="Number of maximum mini-batches (32)")
+parser.add_argument("--check", metavar="INT", type=int, default=5,
+	help="Number of iterations between check for convergence")
 parser.add_argument("--power", metavar="INT", type=int, default=11,
 	help="Number of power iterations in randomized SVD (11)")
 parser.add_argument("--svd-batch", metavar="INT", type=int, default=8192,
@@ -55,7 +57,7 @@ def main():
 	print("-------------------------------------------------")
 	print(f"fastmixture v0.5")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
-	print(f"K={args.K}, seed={args.seed}, levels={args.levels}, threads={args.threads}")
+	print(f"K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
 	assert args.bfile is not None, "No input data (--bfile)!"
 	assert args.K > 1, "Please set K > 1 (--K)!"
@@ -88,8 +90,9 @@ def main():
 
 	# Load numerical libraries
 	import numpy as np
-	from math import ceil
+	from math import ceil, log
 	from fastmixture import em
+	from fastmixture import em_batch
 	from fastmixture import functions
 	from fastmixture import shared
 
@@ -127,28 +130,23 @@ def main():
 
 	# Estimate initial log-likelihood
 	ts = time()
-	lkVec = np.zeros(M)
-	shared.loglike(G, P, Q, lkVec, args.threads)
-	lkPre = np.sum(lkVec)
-	print(f"Initial loglike: {round(lkPre,1)}\n")
+	l_vec = np.zeros(M)
+	shared.loglike(G, P, Q, l_vec, args.threads)
+	L_pre = np.sum(l_vec)
+	print(f"Initial loglike: {round(L_pre,1)}\n")
 
 	# Mini-batch parameters for stochastic EM
 	print("Estimating Q and P using mini-batch EM.")
-	check = 1
 	batch = True
-	batch_L = lkPre
-	batch_N = [2**l for l in range(args.levels-1, -1, -1)]
-	check_B = len(batch_N)
-	print(f"Using {check_B} cyclic batch levels.")
+	batch_L = L_pre
+	print(f"Using {args.batches} mini-batches.")
 
 	### EM algorithm
-	a = np.zeros(N)
-	Qa = np.zeros((N, args.K))
-	Qb = np.zeros((N, args.K))
+	Q_new = np.zeros((N, args.K))
 
 	# Prime iteration
-	em.updateP(G, P, Q, Qa, Qb, a, args.threads)
-	em.updateQ(Q, Qa, Qb, a)
+	em.updateP(G, P, Q, Q_new, args.threads)
+	em.updateQ(Q, Q_new, M, args.threads)
 
 	# Setup containers for EM algorithm
 	converged = False
@@ -166,53 +164,55 @@ def main():
 	np.random.seed(args.seed)
 	for it in range(args.iter):
 		if batch: # SQUAREM mini-batch updates
-			B = batch_N[(check-1) % check_B]
-			B_list = np.array_split(np.random.permutation(M), B)
-			for b in np.arange(B):
-				functions.squaremBatch(G, P, Q, a, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
-					dQ1, dQ2, dQ3, np.sort(B_list[b]), args.threads)
-		else:
-			# SQUAREM full update
-			functions.squarem(G, P, Q, a, P0, Q0, Qa, Qb, dP1, dP2, dP3, \
-				dQ1, dQ2, dQ3, args.threads)
+			B_list = np.array_split(np.random.permutation(M), args.batches)
+			for b in B_list:
+				b_array = np.sort(b)
+				functions.squaremBatch(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, \
+					dQ1, dQ2, dQ3, b_array, args.threads)
+		
+				# Stabilization step
+				em_batch.updateP(G, P, Q, Q_new, b_array, args.threads)
+				em.updateQ(Q, Q_new, M, args.threads)
+
+		# SQUAREM full update
+		functions.squarem(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, \
+			dQ1, dQ2, dQ3, args.threads)
 		
 		# Stabilization step
-		em.updateP(G, P, Q, Qa, Qb, a, args.threads)
-		em.updateQ(Q, Qa, Qb, a)
+		em.updateP(G, P, Q, Q_new, args.threads)
+		em.updateQ(Q, Q_new, M, args.threads)
 
 		# Log-likelihood convergence check
-		if check % check_B == 0:
-			shared.loglike(G, P, Q, lkVec, args.threads)
-			lkCur = np.sum(lkVec)
-			print(f"({it+1})\tLog-like: {round(lkCur,1)}\t" + \
+		if (it + 1) % args.check == 0:
+			shared.loglike(G, P, Q, l_vec, args.threads)
+			L_cur = np.sum(l_vec)
+			print(f"({it+1})\tLog-like: {round(L_cur,1)}\t" + \
 				f"({round(time()-ts,1)}s)", flush=True)
 			if batch:
-				if (lkCur < batch_L) or (abs(lkCur - batch_L) < args.tole):
+				if (L_cur < batch_L) or (abs(L_cur - batch_L) < args.tole):
 					batch_L = float('-inf')
-					batch_N = batch_N[1:]
-					check_B = len(batch_N)
-					if check_B > 1:
-						print(f"Using {check_B} cyclic batch levels.")
-						check = 0
+					args.batches = args.batches//2
+					if args.batches > 1:
+						print(f"Using {args.batches} mini-batches.")
 					else:
-						print("Running non-cyclic SQUAREM updates.")
+						print("Running standard SQUAREM updates.")
+						del B_list
 						batch = False
-						del batch_N, B_list
+						L_pre = float('-inf')
 						Q_pre = np.copy(Q)
 				else:
-					batch_L = lkCur
+					batch_L = L_cur
 			else:
 				rmseQ = shared.rmse(Q, Q_pre)
-				if (abs(lkCur - lkPre) < args.tole) or (rmseQ < args.q_tole):
+				if (abs(L_cur - L_pre) < args.tole) or (rmseQ < args.q_tole):
 					print("Converged!")
-					print(f"Final log-likelihood: {round(lkCur,1)}")
+					print(f"Final log-likelihood: {round(L_cur,1)}")
 					converged = True
 					break
 				np.copyto(Q_pre, Q, casting="no")
-			lkPre = lkCur
+				L_pre = L_cur
 			ts = time()
-		check += 1
-	
+
 	# Print elapsed time for estimation
 	t_tot = time()-start
 	t_min = int(t_tot//60)
@@ -224,7 +224,7 @@ def main():
 	if not args.no_freqs:
 		np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.P", P, fmt="%.6f")
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "a") as log:
-		log.write(f"\nFinal log-likelihood: {round(lkCur,1)}\n")
+		log.write(f"\nFinal log-likelihood: {round(L_cur,1)}\n")
 		if converged:
 			log.write(f"Converged in {it+1} iterations.\n")
 		else:
@@ -233,3 +233,8 @@ def main():
 		log.write(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q\n")
 		if not args.no_freqs:
 			log.write(f"Saved P matrix as {args.out}.K{args.K}.s{args.seed}.P\n")
+
+
+
+##### Main exception #####
+assert __name__ != "__main__", "Please use the 'fastmixture' command!"

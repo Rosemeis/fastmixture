@@ -14,10 +14,7 @@ cpdef void plinkChunk(const unsigned char[:,::1] G, double[:,::1] X, \
 		int i, j
 	for j in prange(M, num_threads=t):
 		for i in range(N):
-			if G[j,i] != 9:
-				X[j,i] = <double>G[M_b+j,i] - 2.0*f[M_b+j]
-			else:
-				X[j,i] = 0.0
+			X[j,i] = <double>G[M_b+j,i] - 2.0*f[M_b+j]
 
 # Root-mean square error between two Q matrices
 cpdef double rmse(const double[:,::1] A, const double[:,::1] B) noexcept nogil:
@@ -25,11 +22,12 @@ cpdef double rmse(const double[:,::1] A, const double[:,::1] B) noexcept nogil:
 		int N = A.shape[0]
 		int K = A.shape[1]
 		int i, k
+		double s = 1.0/<double>(N*K)
 		double res = 0.0
 	for i in range(N):
 		for k in range(K):
 			res += (A[i,k] - B[i,k])*(A[i,k] - B[i,k])
-	return sqrt(res/<double>(N*K))
+	return sqrt(res*s)
 
 # Map2domain
 cpdef void map2domain(double[:,::1] Q) noexcept nogil:

@@ -61,7 +61,7 @@ shared.expandGeno(B, G, N_bytes, args.threads)
 del B
 
 ### Initalize parameters
-lVec = np.zeros(M)
+l_vec = np.zeros(M)
 
 # Load Q and P file
 Q = np.loadtxt(f"{args.qfile}", dtype=float)
@@ -80,8 +80,8 @@ P.clip(min=args.bound, max=1-(args.bound), out=P)
 
 ### Evaluation
 if args.loglike: # Log-likelihood
-	shared.loglike(G, P, Q, lVec, args.threads)
+	shared.loglike(G, P, Q, l_vec, args.threads)
 else: # Sum-of-squares
-	shared.sumSquare(G, P, Q, lVec, args.threads)
-l = np.sum(lVec)
+	shared.sumSquare(G, P, Q, l_vec, args.threads)
+l = np.sum(l_vec)
 print(f"{round(l,1)}", flush=True)

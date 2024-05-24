@@ -37,29 +37,27 @@ cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f, \
 	for j in prange(M, num_threads=t):
 		n = 0.0
 		for i in range(N):
-			if G[j,i] != 9:
-				f[j] += <double>G[j,i]
-				n = n + 1.0
+			f[j] += <double>G[j,i]
+			n = n + 1.0
 		f[j] /= (2.0*n)
 
 # Log-likelihood
 cpdef void loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
-		const double[:,::1] Q, double[::1] lkVec, const int t) noexcept nogil:
+		const double[:,::1] Q, double[::1] l_vec, const int t) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int N = G.shape[1]
 		int K = Q.shape[1]
 		int i, j, k
-		double h, g
+		double g, h
 	for j in prange(M, num_threads=t):
-		lkVec[j] = 0.0
+		l_vec[j] = 0.0
 		for i in range(N):
-			if G[j,i] != 9:
-				g = <double>G[j,i]
-				h = 0.0
-				for k in range(K):
-					h = h + Q[i,k]*P[j,k]
-				lkVec[j] += g*log(h) + (2-g)*log(1-h)
+			g = <double>G[j,i]
+			h = 0.0
+			for k in range(K):
+				h = h + Q[i,k]*P[j,k]
+			l_vec[j] += g*log(h) + (2.0-g)*log(1.0-h)
 
 # Root-mean-square error
 cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nogil:
@@ -75,7 +73,7 @@ cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nog
 
 # Sum-of-squares used for evaluation 
 cpdef void sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
-		const double[:,::1] Q, double[::1] lsVec, const int t) noexcept nogil:
+		const double[:,::1] Q, double[::1] l_vec, const int t) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int N = G.shape[1]
@@ -83,11 +81,10 @@ cpdef void sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
 		int i, j, k
 		double h, g
 	for j in prange(M, num_threads=t):
-		lsVec[j] = 0.0
+		l_vec[j] = 0.0
 		for i in range(N):
-			if G[j,i] != 9:
-				g = <double>G[j,i]
-				h = 0.0
-				for k in range(K):
-					h = h + Q[i,k]*P[j,k]
-				lsVec[j] += (g-2*h)*(g-2*h)
+			g = <double>G[j,i]
+			h = 0.0
+			for k in range(K):
+				h = h + Q[i,k]*P[j,k]
+			l_vec[j] += (g-2.0*h)*(g-2.0*h)
