@@ -46,6 +46,8 @@ parser.add_argument("--als-tole", metavar="FLOAT", type=float, default=1e-4,
 	help="Tolerance for RMSE of P between iterations (1e-4)")
 parser.add_argument("--no-freqs", action="store_true",
 	help="Do not save P-matrix")
+parser.add_argument("--prime", metavar="INT", type=int, default=3,
+	help="Number of priming iterations (3)")
 
 
 ##### fastmixture #####
@@ -61,6 +63,7 @@ def main():
 	print("-------------------------------------------------\n")
 	assert args.bfile is not None, "No input data (--bfile)!"
 	assert args.K > 1, "Please set K > 1 (--K)!"
+	assert args.prime > 0, "Please set priming iterations > 0 (--prime)!"
 	start = time()
 
 	# Create log-file of arguments
@@ -137,16 +140,17 @@ def main():
 
 	# Mini-batch parameters for stochastic EM
 	print("Estimating Q and P using mini-batch EM.")
-	batch = True
-	batch_L = L_pre
-	print(f"Using {args.batches} mini-batches.")
 
 	### EM algorithm
 	Q_new = np.zeros((N, args.K))
 
 	# Prime iteration
-	em.updateP(G, P, Q, Q_new, args.threads)
-	em.updateQ(Q, Q_new, M, args.threads)
+	ts = time()
+	for _ in range(args.prime):
+		em.updateP(G, P, Q, Q_new, args.threads)
+		em.updateQ(Q, Q_new, M, args.threads)
+	print(f"Performed {args.prime} priming iterations\t" + \
+				f"({round(time()-ts,1)}s)", flush=True)
 
 	# Setup containers for EM algorithm
 	converged = False
@@ -160,6 +164,9 @@ def main():
 	dQ3 = np.zeros((N, args.K))
 
 	# fastmixture algorithm
+	print(f"Using {args.batches} mini-batches.")
+	batch = True
+	batch_L = L_pre
 	ts = time()
 	np.random.seed(args.seed)
 	for it in range(args.iter):
