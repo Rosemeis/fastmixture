@@ -177,9 +177,9 @@ def main():
 				functions.squaremBatch(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, \
 					dQ1, dQ2, dQ3, b_array, args.threads)
 		
-				# Stabilization step
-				em_batch.updateP(G, P, Q, Q_new, b_array, args.threads)
-				em.updateQ(Q, Q_new, M, args.threads)
+			# Stabilization step
+			em.updateP(G, P, Q, Q_new, args.threads)
+			em.updateQ(Q, Q_new, M, args.threads)
 
 		# SQUAREM full update
 		functions.squarem(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, \
