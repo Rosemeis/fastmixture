@@ -135,7 +135,7 @@ def main():
 	l_vec = np.zeros(M)
 	shared.loglike(G, P, Q, l_vec, args.threads)
 	L_pre = np.sum(l_vec)
-	print(f"Initial loglike: {round(L_pre,1)}\n")
+	print(f"Initial loglike: {round(L_pre,1)}")
 
 	# Mini-batch parameters for stochastic EM
 	batch = True
