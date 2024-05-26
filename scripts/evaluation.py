@@ -33,11 +33,11 @@ parser.add_argument("--tfile",
 
 # Check input
 args = parser.parse_args()
-assert args.bfile is not None, "No input data (--bfile)!"
 assert args.qfile is not None, "No ancestry proportions (--qfile)!"
 if args.rmse:
 	assert args.tfile is not None, "No ground truth (--tfile)!"
 else:
+	assert args.bfile is not None, "No input data (--bfile)!"
 	assert args.pfile is not None, "No frequencies (--pfile)!"
 	assert (args.loglike or args.sumsquares), "No valid option chosen " + \
 		"(--loglike, --sumsquares)!"
@@ -55,36 +55,40 @@ from fastmixture import shared
 from fastmixture import functions
 
 ### Read data
-# Finding length of .fam and .bim file and finding chromosome indices
-N = functions.extract_length(f"{args.bfile}.fam")
-M = functions.extract_length(f"{args.bfile}.bim")
-G = np.zeros((M, N), dtype=np.uint8)
+# Read Q file
+Q = np.loadtxt(f"{args.qfile}", dtype=float)
+if args.scope:
+	Q = np.ascontiguousarray(Q.T)
+Q.clip(min=args.bound, max=1-(args.bound), out=Q)
+Q /= np.sum(Q, axis=1, keepdims=True)
 
-# Read .bed file
-with open(f"{args.bfile}.bed", "rb") as bed:
-	B = np.fromfile(bed, dtype=np.uint8, offset=3)
-N_bytes = ceil(N/4) # Length of bytes to describe N individuals
-shared.expandGeno(B, G, N_bytes, args.threads)
-del B
-
-### Initalize parameters
-l_vec = np.zeros(M)
-
-# Load P and Q file
+# Load data files needed
 if args.rmse:
+	# Ground truth Q file
 	S = np.loadtxt(f"{args.tfile}", dtype=float)
 else:
+	# Finding length of .fam and .bim file and finding chromosome indices
+	N = functions.extract_length(f"{args.bfile}.fam")
+	M = functions.extract_length(f"{args.bfile}.bim")
+	G = np.zeros((M, N), dtype=np.uint8)
+	assert Q.shape[0] == N, "Number of individuals doesn't match!"
+
+	# Read .bed file
+	with open(f"{args.bfile}.bed", "rb") as bed:
+		B = np.fromfile(bed, dtype=np.uint8, offset=3)
+	N_bytes = ceil(N/4) # Length of bytes to describe N individuals
+	shared.expandGeno(B, G, N_bytes, args.threads)
+	del B
+
+	# Read P file
 	P = np.loadtxt(f"{args.pfile}", dtype=float)
 	if args.scope:
 		P = 1 - P
 	assert P.shape[0] == M, "Number of SNPs doesn't match!"
 	P.clip(min=args.bound, max=1-(args.bound), out=P)
-Q = np.loadtxt(f"{args.qfile}", dtype=float)
-if args.scope:
-	Q = np.ascontiguousarray(Q.T)
-assert Q.shape[0] == N, "Number of individuals doesn't match!"
-Q.clip(min=args.bound, max=1-(args.bound), out=Q)
-Q /= np.sum(Q, axis=1, keepdims=True)
+
+	# Initalize parameters
+	l_vec = np.zeros(M)
 
 ### Evaluation
 if args.rmse:
@@ -97,7 +101,7 @@ if args.rmse:
 				v = d
 				c[k1] = k2
 	S_new = np.ascontiguousarray(S[:,c])
-	print(f"{shared.rmse(Q, S_new):.6f}")
+	print(f"{shared.rmse(Q, S_new):.7f}")
 else:
 	if args.loglike: # Log-likelihood
 		shared.loglike(G, P, Q, l_vec, args.threads)
