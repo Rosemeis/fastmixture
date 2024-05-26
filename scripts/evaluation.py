@@ -97,7 +97,7 @@ if args.rmse:
 				v = d
 				c[k1] = k2
 	S_new = np.ascontiguousarray(S[:,c])
-	print(f"{shared.rmse(Q, S_new):%.6f}")
+	print(f"{shared.rmse(Q, S_new):.6f}")
 else:
 	if args.loglike: # Log-likelihood
 		shared.loglike(G, P, Q, l_vec, args.threads)
