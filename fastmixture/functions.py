@@ -48,7 +48,6 @@ def randomizedSVD(G, f, K, batch, power, seed, threads):
 def extractFactor(U, V, f, K, iterations, tole, seed):
 	rng = np.random.default_rng(seed)
 	M = U.shape[0]
-	N = V.shape[0]
 	P = rng.random(size=(M, K)).clip(min=1e-5, max=1-(1e-5))
 	I = np.dot(P, np.linalg.pinv(np.dot(P.T, P)))
 	Q = 0.5*np.dot(V, np.dot(U.T, I)) + np.sum(I*f.reshape(-1,1), axis=0)

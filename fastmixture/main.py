@@ -94,7 +94,6 @@ def main():
 	import numpy as np
 	from math import ceil, log
 	from fastmixture import em
-	from fastmixture import em_batch
 	from fastmixture import functions
 	from fastmixture import shared
 
