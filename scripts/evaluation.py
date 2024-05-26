@@ -96,7 +96,7 @@ if args.rmse:
 	for k1 in range(Q.shape[1]):
 		v = np.inf
 		for k2 in range(Q.shape[1]):
-			d = np.sqrt(np.dot(Q[:,k1] - S[:,k2], Q[:,k1] - S[:,k2])/float(N))
+			d = np.sqrt(np.dot(Q[:,k1] - S[:,k2], Q[:,k1] - S[:,k2])/float(Q.shape[0]))
 			if d < v:
 				v = d
 				c[k1] = k2
