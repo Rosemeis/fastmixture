@@ -71,7 +71,7 @@ cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nog
 			r += (Q[i,k] - Q_pre[i,k])*(Q[i,k] - Q_pre[i,k])
 	return sqrt(r/<double>(N*K))
 
-# Sum-of-squares used for evaluation 
+# Sum-of-squares used in evaluation 
 cpdef void sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
 		const double[:,::1] Q, double[::1] l_vec, const int t) noexcept nogil:
 	cdef:
@@ -88,3 +88,13 @@ cpdef void sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
 			for k in range(K):
 				h = h + Q[i,k]*P[j,k]
 			l_vec[j] += (g-2.0*h)*(g-2.0*h)
+
+# Root-mean-square error for vectors used in evaluation
+cpdef double rmseVec(const double[::1] q, const double[::1] g) noexcept nogil:
+	cdef:
+		int N = q.shape[0]
+		int i
+		double r = 0.0
+	for i in range(N):
+		r += (q[i] - g[i])*(q[i] - g[i])
+	return sqrt(r/(<double>N))

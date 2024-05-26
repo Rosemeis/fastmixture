@@ -26,14 +26,21 @@ parser.add_argument("--loglike", action="store_true",
 	help="Log-likelihood estimates")
 parser.add_argument("--sumsquares", action="store_true",
 	help="Sum-of-squares estimates")
+parser.add_argument("--rmse", action="store_true",
+	help="Root mean-square-error to ground truth")
+parser.add_argument("--tfile",
+	help="Path to ground truth Q-file")
 
 # Check input
 args = parser.parse_args()
 assert args.bfile is not None, "No input data (--bfile)!"
 assert args.qfile is not None, "No ancestry proportions (--qfile)!"
-assert args.pfile is not None, "No ancestral frequencies (--pfile)!"
-assert (args.loglike or args.sumsquares), "Provide estimate for evaluation " + \
-	"(--loglike or --sumsquares)"
+if args.rmse:
+	assert args.tfile is not None, "No ground truth (--tfile)!"
+else:
+	assert args.pfile is not None, "No frequencies (--pfile)!"
+	assert (args.loglike or args.sumsquares), "No valid option chosen " + \
+		"(--loglike, --sumsquares)!"
 
 # Control threads of external numerical libraries
 os.environ["MKL_NUM_THREADS"] = str(args.threads)
@@ -63,25 +70,38 @@ del B
 ### Initalize parameters
 l_vec = np.zeros(M)
 
-# Load Q and P file
+# Load P and Q file
+if args.rmse:
+	S = np.loadtxt(f"{args.tfile}", dtype=float)
+else:
+	P = np.loadtxt(f"{args.pfile}", dtype=float)
+	if args.scope:
+		P = 1 - P
+	assert P.shape[0] == M, "Number of SNPs doesn't match!"
+	P.clip(min=args.bound, max=1-(args.bound), out=P)
 Q = np.loadtxt(f"{args.qfile}", dtype=float)
 if args.scope:
 	Q = np.ascontiguousarray(Q.T)
-P = np.loadtxt(f"{args.pfile}", dtype=float)
-if args.scope:
-	P = 1 - P
 assert Q.shape[0] == N, "Number of individuals doesn't match!"
-assert P.shape[0] == M, "Number of SNPs doesn't match!"
-
-# Map to bound
 Q.clip(min=args.bound, max=1-(args.bound), out=Q)
 Q /= np.sum(Q, axis=1, keepdims=True)
-P.clip(min=args.bound, max=1-(args.bound), out=P)
 
 ### Evaluation
-if args.loglike: # Log-likelihood
-	shared.loglike(G, P, Q, l_vec, args.threads)
-else: # Sum-of-squares
-	shared.sumSquare(G, P, Q, l_vec, args.threads)
-l = np.sum(l_vec)
-print(f"{round(l,1)}", flush=True)
+if args.rmse:
+	c = np.arange(Q.shape[1], dtype=int)
+	for k1 in range(Q.shape[1]):
+		v = np.inf
+		for k2 in range(Q.shape[1]):
+			d = shared.rmseVec(Q[:,k1], S[:,k2])
+			if d < v:
+				d = v
+				c[k1] = k2
+	S_new = np.ascontiguousarray(S[:,c])
+	print(f"{shared.rmse(Q, S_new):%.6f}")
+else:
+	if args.loglike: # Log-likelihood
+		shared.loglike(G, P, Q, l_vec, args.threads)
+	else: # Sum-of-squares
+		shared.sumSquare(G, P, Q, l_vec, args.threads)
+	L = np.sum(l_vec)
+	print(f"{round(L,1)}", flush=True)
