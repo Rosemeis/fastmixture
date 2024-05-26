@@ -17,9 +17,9 @@ parser.add_argument("-q", "--qfile",
 parser.add_argument("-p", "--pfile",
 	help="Path to P-file")
 parser.add_argument("-t", "--threads", type=int, default=1,
-	help="Number of threads")
+	help="Number of threads (1)")
 parser.add_argument("--bound", type=float, default=1e-5,
-	help="Edge bound for 0 and 1")
+	help="Edge bound for 0 and 1 (1e-5)")
 parser.add_argument("--scope", action="store_true",
 	help="Indicator for SCOPE output files")
 parser.add_argument("--loglike", action="store_true",
@@ -92,9 +92,9 @@ if args.rmse:
 	for k1 in range(Q.shape[1]):
 		v = np.inf
 		for k2 in range(Q.shape[1]):
-			d = shared.rmseVec(Q[:,k1], S[:,k2])
+			d = np.sqrt(np.dot(Q[:,k1] - S[:,k2], Q[:,k1] - S[:,k2])/float(N))
 			if d < v:
-				d = v
+				v = d
 				c[k1] = k2
 	S_new = np.ascontiguousarray(S[:,c])
 	print(f"{shared.rmse(Q, S_new):%.6f}")
