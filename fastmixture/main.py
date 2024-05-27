@@ -15,7 +15,7 @@ from time import time
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
 parser.add_argument("--version", action="version",
-	version="%(prog)s v0.5")
+	version="%(prog)s v0.6")
 parser.add_argument("-b", "--bfile", metavar="PLINK",
 	help="Prefix for PLINK files (.bed, .bim, .fam)")
 parser.add_argument("-k", "--K", metavar="INT", type=int,
@@ -38,8 +38,8 @@ parser.add_argument("--check", metavar="INT", type=int, default=5,
 	help="Number of iterations between check for convergence")
 parser.add_argument("--power", metavar="INT", type=int, default=11,
 	help="Number of power iterations in randomized SVD (11)")
-parser.add_argument("--svd-batch", metavar="INT", type=int, default=8192,
-	help="Number of SNPs in SVD batches (8192)")
+parser.add_argument("--chunk", metavar="INT", type=int, default=8192,
+	help="Number of SNPs in chunk operations (8192)")
 parser.add_argument("--als-iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations in ALS (1000)")
 parser.add_argument("--als-tole", metavar="FLOAT", type=float, default=1e-4,
@@ -57,12 +57,13 @@ def main():
 		parser.print_help()
 		sys.exit()
 	print("-------------------------------------------------")
-	print(f"fastmixture v0.5")
+	print(f"fastmixture v0.6")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
 	print(f"K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
 	assert args.bfile is not None, "No input data (--bfile)!"
 	assert args.K > 1, "Please set K > 1 (--K)!"
+	assert args.batches > 1, "Please set a valid number of batches (--batches)!"
 	start = time()
 
 	# Create log-file of arguments
@@ -122,8 +123,8 @@ def main():
 	# Initialize P and Q matrices from SVD and ALS
 	ts = time()
 	print("Performing SVD and ALS.", end="", flush=True)
-	U, V = functions.randomizedSVD(G, f, args.K-1, args.svd_batch, \
-		args.power, args.seed, args.threads)
+	U, V = functions.randomizedSVD(G, f, args.K-1, args.chunk, args.power, \
+		args.seed, args.threads)
 	P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, args.als_tole, \
 		args.seed)
 	print(f"\rExtracted factor matrices ({round(time()-ts,1)} seconds).")
@@ -173,9 +174,8 @@ def main():
 		if batch: # SQUAREM mini-batch updates
 			B_list = np.array_split(np.random.permutation(M), args.batches)
 			for b in B_list:
-				b_array = np.sort(b)
 				functions.squaremBatch(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, \
-					dQ1, dQ2, dQ3, b_array, args.threads)
+					dQ1, dQ2, dQ3, np.sort(b), args.threads)
 		
 			# Stabilization step
 			em.updateP(G, P, Q, Q_new, args.threads)

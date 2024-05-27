@@ -13,23 +13,23 @@ def extract_length(filename):
 	return int(result.split()[0])
 
 ### Randomized SVD (PCAone Halko)
-def randomizedSVD(G, f, K, batch, power, seed, threads):
+def randomizedSVD(G, f, K, chunk, power, seed, threads):
 	M = G.shape[0]
 	N = G.shape[1]
-	W = ceil(M/batch)
+	W = ceil(M/chunk)
 	L = K + 20
 	rng = np.random.default_rng(seed)
 	O = rng.standard_normal(size=(N, L))
 	A = np.zeros((M, L))
 	H = np.zeros((N, L))
 	for p in range(power):
-		X = np.zeros((batch, N))
+		X = np.zeros((chunk, N))
 		if p > 0:
 			O, _ = np.linalg.qr(H, mode="reduced")
 			H.fill(0.0)
 		for w in range(W):
-			M_w = w*batch
-			if w == (W-1): # Last batch
+			M_w = w*chunk
+			if w == (W-1): # Last chunk
 				del X # Ensure no extra copy
 				X = np.zeros((M - M_w, N))
 			svd.plinkChunk(G, X, f, M_w, threads)
