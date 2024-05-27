@@ -112,7 +112,7 @@ cpdef void alphaP(double[:,::1] P, const double[:,::1] P0, const double[:,::1] D
 			P[j,k] = min(max(P[j,k], 1e-5), 1-(1e-5))
 
 # Update Q
-cpdef void updateQ(double[:,::1] Q, double[:,::1] Q_new, const int M, const int t) \
+cpdef void updateQ(double[:,::1] Q, double[:,::1] Q_new, const int M) \
 		noexcept nogil:
 	cdef:
 		int N = Q.shape[0]
@@ -120,46 +120,44 @@ cpdef void updateQ(double[:,::1] Q, double[:,::1] Q_new, const int M, const int 
 		int i, j, k
 		double a = 1.0/<double>(2*M)
 		double sumQ
-	for i in prange(N, num_threads=t):
+	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
 			Q[i,k] *= Q_new[i,k]*a
 			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
 			Q_new[i,k] = 0.0
-			sumQ = sumQ + Q[i,k]
+			sumQ += Q[i,k]
 		# map2domain (normalize)
 		for k in range(K):
 			Q[i,k] /= sumQ
 
 # Update Q in acceleration
 cpdef void accelQ(double[:,::1] Q, double[:,::1] Q_new, double[:,::1] D, \
-		const int M, const int t) noexcept nogil:
+		const int M) noexcept nogil:
 	cdef:
 		int N = Q.shape[0]
 		int K = Q.shape[1]
 		int i, j, k
 		double a = 1.0/<double>(2*M)
 		double sumQ
-		double* q_thr
-	with nogil, parallel(num_threads=t):
-		q_thr = <double*>PyMem_RawMalloc(sizeof(double)*K)
-		for i in prange(N):
-			sumQ = 0.0
-			for k in range(K):
-				q_thr[k] = Q[i,k]
-				Q[i,k] *= Q_new[i,k]*a
-				Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
-				Q_new[i,k] = 0.0
-				sumQ = sumQ + Q[i,k]
-			# map2domain (normalize)
-			for k in range(K):
-				Q[i,k] /= sumQ
-				D[i,k] = Q[i,k] - q_thr[k]
-		PyMem_RawFree(q_thr)
+		double* q_thr = <double*>PyMem_RawMalloc(sizeof(double)*K)
+	for i in range(N):
+		sumQ = 0.0
+		for k in range(K):
+			q_thr[k] = Q[i,k]
+			Q[i,k] *= Q_new[i,k]*a
+			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
+			Q_new[i,k] = 0.0
+			sumQ += Q[i,k]
+		# map2domain (normalize)
+		for k in range(K):
+			Q[i,k] /= sumQ
+			D[i,k] = Q[i,k] - q_thr[k]
+	PyMem_RawFree(q_thr)
 
 # Accelerated jump for Q (SQUAREM)
 cpdef void alphaQ(double[:,::1] Q, const double[:,::1] Q0, const double[:,::1] D1, \
-		const double[:,::1] D2, double[:,::1] D3, const int t) noexcept nogil:
+		const double[:,::1] D2, double[:,::1] D3) noexcept nogil:
 	cdef:
 		int N = Q.shape[0]
 		int K = Q.shape[1]
@@ -176,11 +174,11 @@ cpdef void alphaQ(double[:,::1] Q, const double[:,::1] Q0, const double[:,::1] D
 	alpha = max(1.0, sqrt(sum1)/sqrt(sum2))
 	a1 = alpha*2.0
 	a2 = alpha*alpha
-	for i in prange(N, num_threads=t):
+	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
 			Q[i,k] = Q0[i,k] + a1*D1[i,k] + a2*D3[i,k]
 			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
-			sumQ = sumQ + Q[i,k]
+			sumQ += Q[i,k]
 		for k in range(K):
 			Q[i,k] /= sumQ
