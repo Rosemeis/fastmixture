@@ -228,10 +228,10 @@ def main():
 
 	### Save estimates and write output to log-file
 	np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.Q", Q, fmt="%.6f")
-	print(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q\n")
+	print(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q")
 	if not args.no_freqs:
 		np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.P", P, fmt="%.6f")
-		print(f"Saved P matrix as {args.out}.K{args.K}.s{args.seed}.P\n")
+		print(f"Saved P matrix as {args.out}.K{args.K}.s{args.seed}.P")
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "a") as log:
 		log.write(f"\nFinal log-likelihood: {round(L_cur,1)}\n")
 		if converged:
