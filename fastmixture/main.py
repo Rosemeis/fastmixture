@@ -158,11 +158,11 @@ def main():
 	# Accelerated priming iteration
 	ts = time()
 	em.updateP(G, P, Q, Q_new, args.threads)
-	em.updateQ(Q, Q_new, M)
+	em.updateQ(Q, Q_new, M, args.threads)
 	functions.squarem(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, dQ1, dQ2, dQ3, \
 		args.threads)
 	em.updateP(G, P, Q, Q_new, args.threads)
-	em.updateQ(Q, Q_new, M)
+	em.updateQ(Q, Q_new, M, args.threads)
 	print(f"Performed priming iteration\t({round(time()-ts,1)}s)\n", flush=True)
 
 	# fastmixture algorithm
@@ -179,7 +179,7 @@ def main():
 		
 			# Stabilization step
 			em.updateP(G, P, Q, Q_new, args.threads)
-			em.updateQ(Q, Q_new, M)
+			em.updateQ(Q, Q_new, M, args.threads)
 
 		# SQUAREM full update
 		functions.squarem(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, \
@@ -187,7 +187,7 @@ def main():
 		
 		# Stabilization step
 		em.updateP(G, P, Q, Q_new, args.threads)
-		em.updateQ(Q, Q_new, M)
+		em.updateQ(Q, Q_new, M, args.threads)
 
 		# Log-likelihood convergence check
 		if (it + 1) % args.check == 0:
