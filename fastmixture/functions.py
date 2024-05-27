@@ -81,30 +81,29 @@ def squarem(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, dQ1, dQ2, dQ3, threads):
 
 	# 1st EM step
 	em.accelP(G, P, Q, Q_new, dP1, threads)
-	em.accelQ(Q, Q_new, dQ1, P.shape[0], threads)
+	em.accelQ(Q, Q_new, dQ1, P.shape[0])
 
 	# 2nd EM step
 	em.accelP(G, P, Q, Q_new, dP2, threads)
-	em.accelQ(Q, Q_new, dQ2, P.shape[0], threads)
+	em.accelQ(Q, Q_new, dQ2, P.shape[0])
 
 	# Acceleation update
 	em.alphaP(P, P0, dP1, dP2, dP3, threads)
-	em.alphaQ(Q, Q0, dQ1, dQ2, dQ3, threads)
+	em.alphaQ(Q, Q0, dQ1, dQ2, dQ3)
 
 # Mini-batch update
-def squaremBatch(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, dQ1, dQ2, dQ3, B, \
-		threads):
+def squaremBatch(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, dQ1, dQ2, dQ3, B, threads):
 	np.copyto(P0, P, casting="no")
 	np.copyto(Q0, Q, casting="no")
 
 	# 1st EM step
 	em_batch.accelP(G, P, Q, Q_new, dP1, B, threads)
-	em.accelQ(Q, Q_new, dQ1, B.shape[0], threads)
+	em.accelQ(Q, Q_new, dQ1, B.shape[0])
 
 	# 2nd EM step
 	em_batch.accelP(G, P, Q, Q_new, dP2, B, threads)
-	em.accelQ(Q, Q_new, dQ2, B.shape[0], threads)
+	em.accelQ(Q, Q_new, dQ2, B.shape[0])
 
 	# Batch acceleration update
 	em_batch.alphaP(P, P0, dP1, dP2, dP3, B, threads)
-	em.alphaQ(Q, Q0, dQ1, dQ2, dQ3, threads)
+	em.alphaQ(Q, Q0, dQ1, dQ2, dQ3)
