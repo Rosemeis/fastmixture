@@ -59,7 +59,7 @@ cpdef void alphaP(double[:,::1] P, const double[:,::1] P0, const double[:,::1] D
 		int d, j, k
 		double sum1 = 0.0
 		double sum2 = 0.0
-		double alpha
+		double alpha, a1, a2
 	for j in range(M):
 		d = s[j]
 		for k in range(K):
@@ -67,8 +67,10 @@ cpdef void alphaP(double[:,::1] P, const double[:,::1] P0, const double[:,::1] D
 			sum1 += D1[d,k]*D1[d,k]
 			sum2 += D3[d,k]*D3[d,k]
 	alpha = max(1.0, sqrt(sum1)/sqrt(sum2))
+	a1 = alpha*2.0
+	a2 = alpha*alpha
 	for j in prange(M, num_threads=t):
 		d = s[j]
 		for k in range(K):
-			P[d,k] = P0[d,k] + 2.0*alpha*D1[d,k] + alpha*alpha*D3[d,k]
+			P[d,k] = P0[d,k] + a1*D1[d,k] + a2*D3[d,k]
 			P[d,k] = min(max(P[d,k], 1e-5), 1-(1e-5))
