@@ -113,7 +113,7 @@ def main():
 	with open(f"{args.bfile}.bed", "rb") as bed:
 		B = np.fromfile(bed, dtype=np.uint8, offset=3)
 	B.shape = (M, N_bytes)
-	shared.expandGeno(B, G, N_bytes, args.threads)
+	shared.expandGeno(B, G, args.threads)
 	del B
 	print(f"\rLoaded {N} samples and {M} SNPs.")
 
