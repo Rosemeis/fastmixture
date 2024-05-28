@@ -6,19 +6,20 @@ from libc.math cimport log, sqrt
 
 ##### fastmixture ######
 # Expand data into full genotype matrix
-cpdef void expandGeno(const unsigned char[::1] B, unsigned char[:,::1] G, \
-		const int N_bytes, const int t) noexcept nogil:
+cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
+		const int t) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int N = G.shape[1]
+		int N_b = B.shape[1]
 		int i, j, b, bytepart
 		unsigned char[4] recode = [0, 9, 1, 2]
 		unsigned char mask = 3
 		unsigned char byte
 	for j in prange(M, num_threads=t):
 		i = 0
-		for b in range(N_bytes):
-			byte = B[j*N_bytes + b]
+		for b in range(N_b):
+			byte = B[j,b]
 			for bytepart in range(4):
 				G[j,i] = recode[byte & mask]
 				byte = byte >> 2

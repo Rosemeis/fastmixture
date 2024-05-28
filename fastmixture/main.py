@@ -107,11 +107,12 @@ def main():
 	N = functions.extract_length(f"{args.bfile}.fam")
 	M = functions.extract_length(f"{args.bfile}.bim")
 	G = np.zeros((M, N), dtype=np.uint8)
+	N_bytes = ceil(N/4) # Length of bytes to describe N individuals
 
 	# Read .bed file
 	with open(f"{args.bfile}.bed", "rb") as bed:
 		B = np.fromfile(bed, dtype=np.uint8, offset=3)
-	N_bytes = ceil(N/4) # Length of bytes to describe N individuals
+	B.shape = (M, N_bytes)
 	shared.expandGeno(B, G, N_bytes, args.threads)
 	del B
 	print(f"\rLoaded {N} samples and {M} SNPs.")
