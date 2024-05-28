@@ -71,13 +71,14 @@ else:
 	N = functions.extract_length(f"{args.bfile}.fam")
 	M = functions.extract_length(f"{args.bfile}.bim")
 	G = np.zeros((M, N), dtype=np.uint8)
+	N_bytes = ceil(N/4) # Length of bytes to describe N individuals
 	assert Q.shape[0] == N, "Number of individuals doesn't match!"
 
 	# Read .bed file
 	with open(f"{args.bfile}.bed", "rb") as bed:
 		B = np.fromfile(bed, dtype=np.uint8, offset=3)
-	N_bytes = ceil(N/4) # Length of bytes to describe N individuals
-	shared.expandGeno(B, G, N_bytes, args.threads)
+	B.shape = (M, N_bytes)
+	shared.expandGeno(B, G, args.threads)
 	del B
 
 	# Read P file
