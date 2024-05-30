@@ -36,7 +36,7 @@ parser.add_argument("--tfile",
 # Check input
 args = parser.parse_args()
 assert args.qfile is not None, "No ancestry proportions (--qfile)!"
-if args.rmse:
+if args.rmse or args.jsd:
 	assert args.tfile is not None, "No ground truth (--tfile)!"
 else:
 	assert args.bfile is not None, "No input data (--bfile)!"
