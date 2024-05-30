@@ -89,3 +89,17 @@ cpdef void sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
 			for k in range(K):
 				h = h + Q[i,k]*P[j,k]
 			l_vec[j] += (g-2.0*h)*(g-2.0*h)
+
+# Kullback-Leibler divergence with average for Jensen-Shannon
+cpdef double divKL(const double[:,::1] A, const double[:,::1] B) noexcept nogil:
+	cdef:
+		int N = A.shape[0]
+		int K = A.shape[1]
+		int i, k
+		double d = 0.0
+		double a
+	for i in range(N):
+		for k in range(K):
+			a = (A[i,k] + B[i,k])*0.5
+			d += A[i,k]*log(A[i,k]/a)
+	return d/<double>N

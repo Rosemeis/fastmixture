@@ -28,6 +28,8 @@ parser.add_argument("--sumsquares", action="store_true",
 	help="Sum-of-squares estimates")
 parser.add_argument("--rmse", action="store_true",
 	help="Root mean-square-error to ground truth")
+parser.add_argument("--jsd", action="store_true",
+	help="Jensen-Shannon divergence to ground-truth")
 parser.add_argument("--tfile",
 	help="Path to ground truth Q-file")
 
@@ -63,7 +65,7 @@ Q.clip(min=args.bound, max=1-(args.bound), out=Q)
 Q /= np.sum(Q, axis=1, keepdims=True)
 
 # Load data files needed
-if args.rmse:
+if args.rmse or args.jsd:
 	# Ground truth Q file
 	S = np.loadtxt(f"{args.tfile}", dtype=float)
 else:
@@ -92,17 +94,22 @@ else:
 	l_vec = np.zeros(M)
 
 ### Evaluation
-if args.rmse:
+if args.rmse or args.jsd:
 	c = np.arange(Q.shape[1], dtype=int)
 	for k1 in range(Q.shape[1]):
 		v = np.inf
 		for k2 in range(Q.shape[1]):
-			d = np.sqrt(np.dot(Q[:,k1]-S[:,k2], Q[:,k1]-S[:,k2])/float(Q.shape[0]))
+			d = np.dot(Q[:,k1]-S[:,k2], Q[:,k1]-S[:,k2])
 			if d < v:
 				v = d
 				c[k1] = k2
-	S_new = np.ascontiguousarray(S[:,c])
-	print(f"{shared.rmse(Q, S_new):.7f}")
+	assert np.unique(c).shape[0] == Q.shape[1], "Fix this!"
+	S = np.ascontiguousarray(S[:,c])
+	if args.rmse:
+		print(f"{shared.rmse(Q, S):.7f}")
+	else:
+		jsd = (shared.divKL(Q, S) + shared.divKL(S, Q))*0.5
+		print(f"{jsd:.7f}")
 else:
 	if args.loglike: # Log-likelihood
 		shared.loglike(G, P, Q, l_vec, args.threads)
