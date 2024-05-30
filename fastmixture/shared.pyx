@@ -101,5 +101,5 @@ cpdef double divKL(const double[:,::1] A, const double[:,::1] B) noexcept nogil:
 	for i in range(N):
 		for k in range(K):
 			a = (A[i,k] + B[i,k])*0.5
-			d += A[i,k]*log(A[i,k]/a)
+			d += A[i,k]*log(A[i,k]/a + 1e-9)
 	return d/<double>N
