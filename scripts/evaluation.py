@@ -111,7 +111,7 @@ if args.rmse or args.jsd:
 		if (i1 not in q_list) and (i2 not in s_list):
 			q_list.append(i1)
 			s_list.append(i2)
-		if len(q_list) == 3:
+		if len(q_list) == K:
 			break
 
 	# Reorder and compute metric
