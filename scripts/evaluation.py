@@ -63,6 +63,7 @@ if args.scope:
 	Q = np.ascontiguousarray(Q.T)
 Q.clip(min=args.bound, max=1-(args.bound), out=Q)
 Q /= np.sum(Q, axis=1, keepdims=True)
+K = Q.shape[1]
 
 # Load data files needed
 if args.rmse or args.jsd:
@@ -88,6 +89,7 @@ else:
 	if args.scope:
 		P = 1 - P
 	assert P.shape[0] == M, "Number of SNPs doesn't match!"
+	assert P.shape[1] == K, "Number of components doesn't match!"
 	P.clip(min=args.bound, max=1-(args.bound), out=P)
 
 	# Initalize parameters
@@ -95,16 +97,25 @@ else:
 
 ### Evaluation
 if args.rmse or args.jsd:
-	c = np.arange(Q.shape[1], dtype=int)
-	for k1 in range(Q.shape[1]):
-		v = np.inf
-		for k2 in range(Q.shape[1]):
-			d = np.dot(Q[:,k1]-S[:,k2], Q[:,k1]-S[:,k2])
-			if d < v:
-				v = d
-				c[k1] = k2
-	assert np.unique(c).shape[0] == Q.shape[1], "Fix this!"
-	S = np.ascontiguousarray(S[:,c])
+	# Find best matching pairs between the two files
+	q_set = set()
+	s_set = set()
+	d_mat = np.zeros((K, K))
+	for k1 in range(K):
+		for k2 in range(K):
+			d_mat[k1,k2] = np.dot(Q[:,k1]-S[:,k2], Q[:,k1]-S[:,k2])
+	
+	# Loop over indices
+	for k in range(K*K):
+		i1, i2 = np.unravel_index(np.argsort(d_mat.flatten())[k], (K,K))
+		if (i1 != q_set) and (i2 != s_set):
+			q_set.add(i1)
+			s_set.add(i2)
+		if len(q_set) == 3:
+			break
+	
+	# Reorder and comput metric
+	S = np.ascontiguousarray(S[:,np.array(list(s_set))])
 	if args.rmse:
 		print(f"{shared.rmse(Q, S):.7f}")
 	else:
