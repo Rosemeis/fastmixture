@@ -113,9 +113,10 @@ if args.rmse or args.jsd:
 			s_list.append(i2)
 		if len(q_list) == 3:
 			break
-	
-	# Reorder and comput metric
-	S = np.ascontiguousarray(S[:,np.array(s_list)])
+
+	# Reorder and compute metric
+	Q = np.ascontiguousarray(Q[:,q_list])
+	S = np.ascontiguousarray(S[:,s_list])
 	if args.rmse:
 		print(f"{shared.rmse(Q, S):.7f}")
 	else:
