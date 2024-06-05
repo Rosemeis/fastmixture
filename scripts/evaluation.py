@@ -108,7 +108,7 @@ if args.rmse or args.jsd:
 	# Loop over indices
 	for k in range(K*K):
 		i1, i2 = np.unravel_index(np.argsort(d_mat.flatten())[k], (K,K))
-		if (i1 != q_set) and (i2 != s_set):
+		if (i1 not in q_set) and (i2 not in s_set):
 			q_set.add(i1)
 			s_set.add(i2)
 		if len(q_set) == 3:
