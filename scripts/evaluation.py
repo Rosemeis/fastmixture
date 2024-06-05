@@ -98,8 +98,8 @@ else:
 ### Evaluation
 if args.rmse or args.jsd:
 	# Find best matching pairs between the two files
-	q_set = set()
-	s_set = set()
+	q_list = []
+	s_list = []
 	d_mat = np.zeros((K, K))
 	for k1 in range(K):
 		for k2 in range(K):
@@ -108,14 +108,14 @@ if args.rmse or args.jsd:
 	# Loop over indices
 	for k in range(K*K):
 		i1, i2 = np.unravel_index(np.argsort(d_mat.flatten())[k], (K,K))
-		if (i1 not in q_set) and (i2 not in s_set):
-			q_set.add(i1)
-			s_set.add(i2)
-		if len(q_set) == 3:
+		if (i1 not in q_list) and (i2 not in s_list):
+			q_list.append(i1)
+			s_list.append(i2)
+		if len(q_list) == 3:
 			break
 	
 	# Reorder and comput metric
-	S = np.ascontiguousarray(S[:,np.array(list(s_set))])
+	S = np.ascontiguousarray(S[:,np.array(s_list)])
 	if args.rmse:
 		print(f"{shared.rmse(Q, S):.7f}")
 	else:
