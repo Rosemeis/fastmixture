@@ -5,9 +5,8 @@
 
 ## Table of Contents
 - [Installation](#installation)
-- [Usage](#usage)
-<!-- - [Configuration](#configuration)
--->- [License](#license)
+- [Usage](#usage) <!-- [Configuration](#configuration) -->
+- [License](#license)
 - [Authors and Acknowledgements](#authors-and-acknowledgements)
   
 ## Installation 
