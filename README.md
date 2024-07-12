@@ -5,12 +5,12 @@
 
 ## Table of Contents
 - [Installation](#installation)
+- [Citation](#citation)
 - [Usage](#usage) <!-- [Configuration](#configuration) -->
 - [License](#license)
 - [Authors and Acknowledgements](#authors-and-acknowledgements)
   
 ## Installation 
-
 ```bash
 git clone https://github.com/Rosemeis/fastmixture.git
 cd fastmixture
@@ -18,6 +18,9 @@ pip3 install .
 
 # The "fastmixture" main caller will now be available
 ```
+
+## Citation
+Please cite our [preprint on BioRxiv](https://doi.org/10.1101/2024.07.08.602454).
 
 ## Usage
 `fastmixture` requires input data in binary [PLINK](https://www.cog-genomics.org/plink/1.9/input#bed) format. 
