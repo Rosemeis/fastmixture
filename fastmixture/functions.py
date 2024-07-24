@@ -2,7 +2,6 @@ import numpy as np
 import subprocess
 from math import ceil
 from fastmixture import em
-from fastmixture import em_batch
 from fastmixture import svd
 
 ##### fastmixture functions #####
@@ -73,37 +72,31 @@ def extractFactor(U, V, f, K, iterations, tole, seed):
 			break
 	return P, Q
 
-### SQUAREM
-# Full update
-def squarem(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, dQ1, dQ2, dQ3, threads):
-	np.copyto(P0, P, casting="no")
-	np.copyto(Q0, Q, casting="no")
-
+### Quasi-Newton accelerated updates
+# Full QN update
+def quasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, threads):
 	# 1st EM step
-	em.accelP(G, P, Q, Q_new, dP1, threads)
-	em.accelQ(Q, Q_new, dQ1, P.shape[0])
+	em.accelP(G, P0, P1, Q0, Q_tmp, threads)
+	em.accelQ(Q0, Q1, Q_tmp, G.shape[0])
 
 	# 2nd EM step
-	em.accelP(G, P, Q, Q_new, dP2, threads)
-	em.accelQ(Q, Q_new, dQ2, P.shape[0])
+	em.accelP(G, P1, P2, Q1, Q_tmp, threads)
+	em.accelQ(Q1, Q2, Q_tmp, G.shape[0])
 
-	# Acceleation update
-	em.alphaP(P, P0, dP1, dP2, dP3, threads)
-	em.alphaQ(Q, Q0, dQ1, dQ2, dQ3)
+	# Acceleration update
+	em.alphaP(P0, P1, P2, threads)
+	em.alphaQ(Q0, Q1, Q2)
 
-# Mini-batch update
-def squaremBatch(G, P, Q, P0, Q0, Q_new, dP1, dP2, dP3, dQ1, dQ2, dQ3, B, threads):
-	np.copyto(P0, P, casting="no")
-	np.copyto(Q0, Q, casting="no")
-
+# Mini-batch QN update
+def quasiBatch(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, s, threads):
 	# 1st EM step
-	em_batch.accelP(G, P, Q, Q_new, dP1, B, threads)
-	em.accelQ(Q, Q_new, dQ1, B.shape[0])
+	em.batchP(G, P0, P1, Q0, Q_tmp, s, threads)
+	em.accelQ(Q0, Q1, Q_tmp, s.shape[0])
 
 	# 2nd EM step
-	em_batch.accelP(G, P, Q, Q_new, dP2, B, threads)
-	em.accelQ(Q, Q_new, dQ2, B.shape[0])
-
+	em.batchP(G, P1, P2, Q1, Q_tmp, s, threads)
+	em.accelQ(Q1, Q2, Q_tmp, s.shape[0])
+	
 	# Batch acceleration update
-	em_batch.alphaP(P, P0, dP1, dP2, dP3, B, threads)
-	em.alphaQ(Q, Q0, dQ1, dQ2, dQ3)
+	em.alphaBatchP(P0, P1, P2, s, threads)
+	em.alphaQ(Q0, Q1, Q2)

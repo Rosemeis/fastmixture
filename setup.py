@@ -10,14 +10,6 @@ extensions = [
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
-	), 
-	Extension(
-		"fastmixture.em_batch",
-		["fastmixture/em_batch.pyx"],
-		extra_compile_args=['-fopenmp', '-O3', '-g0', '-Wno-unreachable-code'],
-		extra_link_args=['-fopenmp'],
-		include_dirs=[numpy.get_include()],
-		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 	),
 	Extension(
 		"fastmixture.svd",
@@ -39,7 +31,7 @@ extensions = [
 
 setup(
 	name="fastmixture",
-	version="0.6",
+	version="0.7",
 	description="Fast Ancestry Estimation",
 	author="Jonas Meisner",
 	packages=["fastmixture"],

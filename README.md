@@ -1,5 +1,4 @@
-# fastmixture (v0.6)
-
+# fastmixture (v0.7)
 `fastmixture` is a new software for estimating ancestry proportions in unrelated individuals. It is significantly faster than previous model-based software while providing accurate and robust ancestry estimates.
 
 

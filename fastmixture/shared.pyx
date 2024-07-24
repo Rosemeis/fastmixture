@@ -5,6 +5,15 @@ from cython.parallel import prange
 from libc.math cimport log, sqrt
 
 ##### fastmixture ######
+# Inline function
+cdef inline double computeH(const double* p, const double* q, int K) noexcept nogil:
+	cdef:
+		int k
+		double h = 0.0
+	for k in range(K):
+		h += p[k]*q[k]
+	return h
+
 # Expand data into full genotype matrix
 cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 		const int t) noexcept nogil:
@@ -55,9 +64,7 @@ cpdef void loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
 		l_vec[j] = 0.0
 		for i in range(N):
 			g = <double>G[j,i]
-			h = 0.0
-			for k in range(K):
-				h = h + Q[i,k]*P[j,k]
+			h = computeH(&P[j,0], &Q[i,0], K)
 			l_vec[j] += g*log(h) + (2.0-g)*log(1.0-h)
 
 # Root-mean-square error
@@ -85,9 +92,7 @@ cpdef void sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
 		l_vec[j] = 0.0
 		for i in range(N):
 			g = <double>G[j,i]
-			h = 0.0
-			for k in range(K):
-				h = h + Q[i,k]*P[j,k]
+			h = computeH(&P[j,0], &Q[i,0], K)
 			l_vec[j] += (g-2.0*h)*(g-2.0*h)
 
 # Kullback-Leibler divergence with average for Jensen-Shannon

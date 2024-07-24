@@ -5,6 +5,10 @@ from cython.parallel import prange
 from libc.math cimport sqrt
 
 ##### Randomized SVD - PCAone method #####
+# Inline function
+cdef inline double project(double s) noexcept nogil:
+	return min(max(s, 1e-5), 1-(1e-5))
+
 # Load centered chunk from PLINK file for SVD
 cpdef void plinkChunk(const unsigned char[:,::1] G, double[:,::1] X, \
 		const double[::1] f, const int M_b, const int t) noexcept nogil:
@@ -39,7 +43,7 @@ cpdef void map2domain(double[:,::1] Q) noexcept nogil:
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
-			Q[i,k] = min(max(Q[i,k], 1e-5), 1-(1e-5))
+			Q[i,k] = project(Q[i,k])
 			sumQ += Q[i,k]
 		for k in range(K):
 			Q[i,k] /= sumQ
