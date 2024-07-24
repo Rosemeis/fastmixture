@@ -150,8 +150,7 @@ def main():
 
 	# Accelerated priming iteration
 	ts = time()
-	em.updateP(G, P, Q, Q_tmp, args.threads)
-	em.updateQ(Q, Q_tmp, M)
+	functions.standard(G, P, Q, Q_tmp, args.threads)
 	functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, args.threads)
 	print(f"Performed priming iteration\t({round(time()-ts,1)}s)\n", flush=True)
 
@@ -174,19 +173,20 @@ def main():
 		if (it + 1) % args.check == 0:
 			shared.loglike(G, P, Q, l_vec, args.threads)
 			L_cur = np.sum(l_vec)
-			print(f"({it+1})\tLog-like: {round(L_cur,1)}\t" + \
-				f"({round(time()-ts,1)}s)", flush=True)
+			L_str = f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)"
+			print(L_str, flush=True)
 			if batch:
 				if (L_cur < batch_L) or (abs(L_cur - batch_L) < args.tole):
-					batch_L = float('-inf')
+					# Halve number of batches
 					args.batches = args.batches//2
 					if args.batches > 1:
 						print(f"Using {args.batches} mini-batches.")
+						batch_L = float('-inf')
 					else:
 						print("Running standard accelerated updates.")
-						del B_list
 						batch = False
 						L_pre = float('-inf')
+						del B_list
 				else:
 					batch_L = L_cur
 			else:

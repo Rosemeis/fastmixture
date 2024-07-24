@@ -52,10 +52,10 @@ cdef inline void outerQ(double* q, double* q_tmp, const double a, const int K) \
 		double sumQ = 0.0
 	for k in range(K):
 		q[k] = project(q[k]*q_tmp[k]*a)
+		q_tmp[k] = 0.0
 		sumQ += q[k]
 	for k in range(K):
 		q[k] /= sumQ
-		q_tmp[k] = 0.0
 
 cdef inline void outerAccelQ(double* q, double* q_new, double* q_tmp, const double a, \
 		const int K) noexcept nogil:
@@ -64,10 +64,10 @@ cdef inline void outerAccelQ(double* q, double* q_new, double* q_tmp, const doub
 		double sumQ = 0.0
 	for k in range(K):
 		q_new[k] = project(q[k]*q_tmp[k]*a)
+		q_tmp[k] = 0.0
 		sumQ += q_new[k]
 	for k in range(K):
 		q_new[k] /= sumQ
-		q_tmp[k] = 0.0
 
 cdef inline double computeC(const double* p0, const double* p1, const double* p2, \
 		const int I, const int J) noexcept nogil:
@@ -252,8 +252,8 @@ cpdef void batchP(const unsigned char[:,::1] G, double[:,::1] P, \
 		free(Q_thr)
 
 # Accelerated jump for P (QN)
-cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] P2, \
-		const long[::1] s, const int t) noexcept nogil:
+cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, \
+		const double[:,::1] P2, const long[::1] s, const int t) noexcept nogil:
 	cdef:
 		int M = s.shape[0]
 		int K = P0.shape[1]

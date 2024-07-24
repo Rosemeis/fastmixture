@@ -51,7 +51,7 @@ def extractFactor(U, V, f, K, iterations, tole, seed):
 	I = np.dot(P, np.linalg.pinv(np.dot(P.T, P)))
 	Q = 0.5*np.dot(V, np.dot(U.T, I)) + np.sum(I*f.reshape(-1,1), axis=0)
 	svd.map2domain(Q)
-	Q0 = np.zeros_like(Q)	
+	Q0 = np.zeros_like(Q)
 
 	# Perform ALS iterations
 	for _ in range(iterations):
@@ -72,7 +72,14 @@ def extractFactor(U, V, f, K, iterations, tole, seed):
 			break
 	return P, Q
 
-### Quasi-Newton accelerated updates
+### Standard update
+# Full EM update
+def standard(G, P, Q, Q_tmp, threads):
+	# EM step
+	em.updateP(G, P, Q, Q_tmp, threads)
+	em.updateQ(Q, Q_tmp, G.shape[0])
+
+### Accelerated updates
 # Full QN update
 def quasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, threads):
 	# 1st EM step
