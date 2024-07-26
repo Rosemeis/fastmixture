@@ -69,33 +69,37 @@ cdef inline void outerAccelQ(double* q, double* q_new, double* q_tmp, const doub
 	for k in range(K):
 		q_new[k] /= sumQ
 
-cdef inline double computeC(const double* p0, const double* p1, const double* p2, \
+cdef inline double computeC(const double* x0, const double* x1, const double* x2, \
 		const int I, const int J) noexcept nogil:
 	cdef:
-		int i, j
+		int i, j, k
 		double sum1 = 0.0
 		double sum2 = 0.0
-		double u
+		double u, v
 	for i in range(I):
 		for j in range(J):
-			u = p1[i*J + j] - p0[i*J + j]
+			k = i*J + j
+			u = x1[k]-x0[k]
+			v = (x2[k]-x1[k])-u
 			sum1 += u*u
-			sum2 += u*((p2[i*J + j] - p1[i*J + j]) - u)
+			sum2 += u*v
 	return -(sum1/sum2)
 
 cdef inline double computeBatchC(const double* p0, const double* p1, const double* p2, \
 		const long* s, const int I, const int J) noexcept nogil:
 	cdef:
-		int i, j, l
+		int i, j, k, l
 		double sum1 = 0.0
 		double sum2 = 0.0
-		double u
+		double u, v
 	for i in range(I):
 		l = s[i]
 		for j in range(J):
-			u = p1[l*J + j] - p0[l*J + j]
+			k = l*J + j
+			u = p1[k]-p0[k]
+			v = (p2[k]-p1[k])-u
 			sum1 += u*u
-			sum2 += u*((p2[l*J + j] - p1[l*J + j]) - u)
+			sum2 += u*v
 	return -(sum1/sum2)
 
 

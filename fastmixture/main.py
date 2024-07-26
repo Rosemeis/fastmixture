@@ -90,8 +90,7 @@ def main():
 
 	# Load numerical libraries
 	import numpy as np
-	from math import ceil
-	from fastmixture import em
+	from math import ceil, isclose
 	from fastmixture import functions
 	from fastmixture import shared
 
@@ -132,12 +131,12 @@ def main():
 	ts = time()
 	l_vec = np.zeros(M)
 	shared.loglike(G, P, Q, l_vec, args.threads)
-	L_pre = np.sum(l_vec)
-	print(f"Initial loglike: {round(L_pre,1)}")
+	L_old = np.sum(l_vec)
+	print(f"Initial loglike: {round(L_old,1)}")
 
 	# Mini-batch parameters for stochastic EM
 	batch = True
-	batch_L = L_pre
+	batch_L = L_old
 
 	### EM algorithm
 	# Setup containers for EM algorithm
@@ -147,6 +146,8 @@ def main():
 	Q1 = np.zeros((N, args.K))
 	Q2 = np.zeros((N, args.K))
 	Q_tmp = np.zeros((N, args.K))
+	P_old = np.zeros((M, args.K))
+	Q_old = np.zeros((N, args.K))
 
 	# Accelerated priming iteration
 	ts = time()
@@ -166,30 +167,51 @@ def main():
 				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, np.sort(b), \
 					args.threads)
 
-		# Quasi-Newton full update
-		functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, args.threads)
+			# Quasi-Newton full update
+			functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, args.threads)
+		else: # Safety updates with log-likelihood check
+			L_cur = functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, l_vec, L_cur, \
+				args.threads)
+			if (L_cur < L_old) and (abs(L_cur - L_old) > args.tole): # Break
+				P = P_old
+				Q = Q_old
+				L_cur = L_old
+				converged = True
+				print("Returning with best estimate!")
+				print(f"Final log-likelihood: {round(L_cur,1)}")
+				break
+			else:
+				np.copyto(P_old, P, casting="no")
+				np.copyto(Q_old, Q, casting="no")
+				L_old = L_cur
 
 		# Log-likelihood convergence check
 		if (it + 1) % args.check == 0:
-			shared.loglike(G, P, Q, l_vec, args.threads)
-			L_cur = np.sum(l_vec)
-			L_str = f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)"
-			print(L_str, flush=True)
 			if batch:
-				if (L_cur < batch_L) or (abs(L_cur - batch_L) < args.tole):
+				shared.loglike(G, P, Q, l_vec, args.threads)
+				L_cur = np.sum(l_vec)
+				L = f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)"
+				print(L, flush=True)
+				if (L_cur < batch_L) or (abs(L_cur - batch_L) < args.tole):					
 					# Halve number of batches
 					args.batches = args.batches//2
 					if args.batches > 1:
 						print(f"Using {args.batches} mini-batches.")
 						batch_L = float('-inf')
-					else:
-						print("Running standard accelerated updates.")
+					else: # Turn off mini-batch acceleration
+						print("Running standard updates.")
 						batch = False
 						L_pre = float('-inf')
 						del B_list
 				else:
 					batch_L = L_cur
+					if L_cur > L_old:
+						np.copyto(P_old, P, casting="no")
+						np.copyto(Q_old, Q, casting="no")
+						L_old = L_cur
 			else:
+				L = f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)"
+				print(L, flush=True)
 				if (abs(L_cur - L_pre) < args.tole):
 					print("Converged!")
 					print(f"Final log-likelihood: {round(L_cur,1)}")

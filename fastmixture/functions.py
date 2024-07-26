@@ -2,6 +2,7 @@ import numpy as np
 import subprocess
 from math import ceil
 from fastmixture import em
+from fastmixture import shared
 from fastmixture import svd
 
 ##### fastmixture functions #####
@@ -107,3 +108,27 @@ def quasiBatch(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, s, threads):
 	# Batch acceleration update
 	em.alphaBatchP(P0, P1, P2, s, threads)
 	em.alphaQ(Q0, Q1, Q2)
+
+# Full safety update
+def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, l_vec, L_saf, threads):
+	# 1st EM step
+	em.accelP(G, P0, P1, Q0, Q_tmp, threads)
+	em.accelQ(Q0, Q1, Q_tmp, G.shape[0])
+
+	# 2nd EM step
+	em.accelP(G, P1, P2, Q1, Q_tmp, threads)
+	em.accelQ(Q1, Q2, Q_tmp, G.shape[0])
+
+	# Acceleration update
+	em.alphaP(P0, P1, P2, threads)
+	em.alphaQ(Q0, Q1, Q2)
+
+	# Estimate log-likelihood
+	shared.loglike(G, P0, Q0, l_vec, threads)
+	L_cur = np.sum(l_vec)
+	if L_cur < L_saf:
+		P0, P2 = P2, P0
+		Q0, Q2 = Q2, Q0
+		shared.loglike(G, P0, Q0, l_vec, threads)
+		L_cur = np.sum(l_vec)
+	return L_cur
