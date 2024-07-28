@@ -90,7 +90,7 @@ def main():
 
 	# Load numerical libraries
 	import numpy as np
-	from math import ceil, isclose
+	from math import ceil
 	from fastmixture import functions
 	from fastmixture import shared
 
@@ -145,9 +145,9 @@ def main():
 	P2 = np.zeros((M, args.K))
 	Q1 = np.zeros((N, args.K))
 	Q2 = np.zeros((N, args.K))
-	Q_tmp = np.zeros((N, args.K))
 	P_old = np.zeros((M, args.K))
 	Q_old = np.zeros((N, args.K))
+	Q_tmp = np.zeros((N, args.K))
 
 	# Accelerated priming iteration
 	ts = time()
@@ -172,17 +172,17 @@ def main():
 		else: # Safety updates with log-likelihood check
 			L_cur = functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, l_vec, L_cur, \
 				args.threads)
-			if (L_cur < L_old) and (abs(L_cur - L_old) > args.tole): # Break
-				P = P_old
-				Q = Q_old
+			if L_cur < L_old: # Break
+				shared.copyP(P, P_old, args.threads)
+				shared.copyQ(Q, Q_old)
 				L_cur = L_old
-				converged = True
 				print("Returning with best estimate!")
 				print(f"Final log-likelihood: {round(L_cur,1)}")
+				converged = True
 				break
-			else:
-				np.copyto(P_old, P, casting="no")
-				np.copyto(Q_old, Q, casting="no")
+			elif L_cur > L_old:
+				shared.copyP(P_old, P, args.threads)
+				shared.copyQ(Q_old, Q)
 				L_old = L_cur
 
 		# Log-likelihood convergence check
@@ -206,8 +206,8 @@ def main():
 				else:
 					batch_L = L_cur
 					if L_cur > L_old:
-						np.copyto(P_old, P, casting="no")
-						np.copyto(Q_old, Q, casting="no")
+						shared.copyP(P_old, P, args.threads)
+						shared.copyQ(Q_old, Q)
 						L_old = L_cur
 			else:
 				L = f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)"

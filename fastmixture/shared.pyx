@@ -67,6 +67,26 @@ cpdef void loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
 			h = computeH(&P[j,0], &Q[i,0], K)
 			l_vec[j] += g*log(h) + (2.0-g)*log(1.0-h)
 
+# Copy P array
+cpdef void copyP(double[:,::1] P0, const double[:,::1] P1, const int t) noexcept nogil:
+	cdef:
+		int M = P0.shape[0]
+		int K = P0.shape[1]
+		int j, k
+	for j in prange(M, num_threads=t):
+		for k in range(K):
+			P0[j,k] = P1[j,k]
+
+# Copy Q array
+cpdef void copyQ(double[:,::1] Q0, const double[:,::1] Q1) noexcept nogil:
+	cdef:
+		int N = Q0.shape[0]
+		int K = Q0.shape[1]
+		int i, k
+	for i in range(N):
+		for k in range(K):
+			Q0[i,k] = Q1[i,k]
+
 # Root-mean-square error
 cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nogil:
 	cdef:

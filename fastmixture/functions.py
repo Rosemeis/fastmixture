@@ -56,7 +56,7 @@ def extractFactor(U, V, f, K, iterations, tole, seed):
 
 	# Perform ALS iterations
 	for _ in range(iterations):
-		np.copyto(Q0, Q, casting="no")
+		shared.copyQ(Q0, Q)
 
 		# Update P
 		I = np.dot(Q, np.linalg.pinv(np.dot(Q.T, Q)))
@@ -110,7 +110,7 @@ def quasiBatch(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, s, threads):
 	em.alphaQ(Q0, Q1, Q2)
 
 # Full safety update
-def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, l_vec, L_saf, threads):
+def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, l_vec, L_cur, threads):
 	# 1st EM step
 	em.accelP(G, P0, P1, Q0, Q_tmp, threads)
 	em.accelQ(Q0, Q1, Q_tmp, G.shape[0])
@@ -125,10 +125,10 @@ def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, l_vec, L_saf, threads):
 
 	# Estimate log-likelihood
 	shared.loglike(G, P0, Q0, l_vec, threads)
-	L_cur = np.sum(l_vec)
-	if L_cur < L_saf:
-		P0, P2 = P2, P0
-		Q0, Q2 = Q2, Q0
+	L_new = np.sum(l_vec)
+	if L_new < L_cur:
+		shared.copyP(P0, P2, threads)
+		shared.copyQ(Q0, Q2)
 		shared.loglike(G, P0, Q0, l_vec, threads)
-		L_cur = np.sum(l_vec)
-	return L_cur
+		L_new = np.sum(l_vec)
+	return L_new
