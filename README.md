@@ -38,9 +38,9 @@ A supervised mode is available in `fastmixture` using `--supervised`. Provide a 
 
 ```bash
 # Using binary PLINK files for K=3
-fastmixture --bfile data --K 3 --threads 32 --seed 1 --out test --supervised data.labels
+fastmixture --bfile data --K 3 --threads 32 --seed 1 --out super --supervised data.labels
 
-# Outputs Q and P files (test.K3.s1.Q and test.K3.s1.P)
+# Outputs Q and P files (super.K3.s1.Q and super.K3.s1.P)
 ```
 
 ## License
