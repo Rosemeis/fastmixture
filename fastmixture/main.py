@@ -33,7 +33,7 @@ parser.add_argument("--tole", metavar="FLOAT", type=float, default=0.5,
 parser.add_argument("--batches", metavar="INT", type=int, default=32,
 	help="Number of maximum mini-batches (32)")
 parser.add_argument("--supervised", metavar="FILE",
-	help="Path to file with population assignments")
+	help="Path to population assignment file")
 parser.add_argument("--check", metavar="INT", type=int, default=5,
 	help="Number of iterations between check for convergence")
 parser.add_argument("--power", metavar="INT", type=int, default=11,

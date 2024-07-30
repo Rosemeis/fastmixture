@@ -173,8 +173,6 @@ cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] 
 		int M = P0.shape[0]
 		int K = P0.shape[1]
 		int j, k
-		double sum1 = 0.0
-		double sum2 = 0.0
 		double c1, c2
 	c1 = computeC(&P0[0,0], &P1[0,0], &P2[0,0], M, K)
 	c2 = 1.0 - c1

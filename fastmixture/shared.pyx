@@ -56,7 +56,7 @@ cpdef void initP(const unsigned char[:,::1] G, double[:,::1] P, \
 			P[j,k] = project(P[j,k])
 
 # Initialize Q in supervised mode
-cpdef void initQ(double[:,::1] Q, unsigned char[::1] y) noexcept nogil:
+cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 	cdef:
 		int N = Q.shape[0]
 		int K = Q.shape[1]
@@ -77,7 +77,7 @@ cpdef void initQ(double[:,::1] Q, unsigned char[::1] y) noexcept nogil:
 			Q[i,k] /= sumQ
 
 # Update Q in supervised mode
-cpdef void superQ(double[:,::1] Q, unsigned char[::1] y) noexcept nogil:
+cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 	cdef:
 		int N = Q.shape[0]
 		int K = Q.shape[1]
