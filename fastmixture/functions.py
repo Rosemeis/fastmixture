@@ -73,55 +73,66 @@ def extractFactor(U, V, f, K, iterations, tole, seed):
 			break
 	return P, Q
 
-### Standard update
-# Full EM update
-def standard(G, P, Q, Q_tmp, threads):
-	# EM step
-	em.updateP(G, P, Q, Q_tmp, threads)
-	em.updateQ(Q, Q_tmp, G.shape[0])
-
 ### Accelerated updates
 # Full QN update
-def quasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, threads):
+def quasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, threads):
 	# 1st EM step
 	em.accelP(G, P0, P1, Q0, Q_tmp, threads)
 	em.accelQ(Q0, Q1, Q_tmp, G.shape[0])
+	if y is not None:
+		shared.superQ(Q1, y)
 
 	# 2nd EM step
 	em.accelP(G, P1, P2, Q1, Q_tmp, threads)
 	em.accelQ(Q1, Q2, Q_tmp, G.shape[0])
+	if y is not None:
+		shared.superQ(Q2, y)
 
 	# Acceleration update
 	em.alphaP(P0, P1, P2, threads)
 	em.alphaQ(Q0, Q1, Q2)
+	if y is not None:
+		shared.superQ(Q0, y)
 
 # Mini-batch QN update
-def quasiBatch(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, s, threads):
+def quasiBatch(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, s, threads):
 	# 1st EM step
 	em.batchP(G, P0, P1, Q0, Q_tmp, s, threads)
 	em.accelQ(Q0, Q1, Q_tmp, s.shape[0])
+	if y is not None:
+		shared.superQ(Q1, y)
 
 	# 2nd EM step
 	em.batchP(G, P1, P2, Q1, Q_tmp, s, threads)
 	em.accelQ(Q1, Q2, Q_tmp, s.shape[0])
+	if y is not None:
+		shared.superQ(Q2, y)
 	
 	# Batch acceleration update
 	em.alphaBatchP(P0, P1, P2, s, threads)
 	em.alphaQ(Q0, Q1, Q2)
+	if y is not None:
+		shared.superQ(Q0, y)
 
 # Full safety update
-def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, l_vec, L_cur, threads):
+def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, L_cur, threads):
 	# 1st EM step
 	em.accelP(G, P0, P1, Q0, Q_tmp, threads)
 	em.accelQ(Q0, Q1, Q_tmp, G.shape[0])
+	if y is not None:
+		shared.superQ(Q1, y)
 
 	# 2nd EM step
 	em.accelP(G, P1, P2, Q1, Q_tmp, threads)
 	em.accelQ(Q1, Q2, Q_tmp, G.shape[0])
+	if y is not None:
+		shared.superQ(Q2, y)
 
 	# Acceleration update
 	em.alphaP(P0, P1, P2, threads)
 	em.alphaQ(Q0, Q1, Q2)
+	if y is not None:
+		shared.superQ(Q0, y)
 
 	# Estimate log-likelihood
 	shared.loglike(G, P0, Q0, l_vec, threads)

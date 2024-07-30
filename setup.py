@@ -31,7 +31,7 @@ extensions = [
 
 setup(
 	name="fastmixture",
-	version="0.7",
+	version="0.8",
 	description="Fast Ancestry Estimation",
 	author="Jonas Meisner",
 	packages=["fastmixture"],

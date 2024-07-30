@@ -15,7 +15,7 @@ from time import time
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
 parser.add_argument("--version", action="version",
-	version="%(prog)s v0.7")
+	version="%(prog)s v0.8")
 parser.add_argument("-b", "--bfile", metavar="PLINK",
 	help="Prefix for PLINK files (.bed, .bim, .fam)")
 parser.add_argument("-k", "--K", metavar="INT", type=int,
@@ -32,6 +32,8 @@ parser.add_argument("--tole", metavar="FLOAT", type=float, default=0.5,
 	help="Tolerance in log-likelihood units between iterations (0.5)")
 parser.add_argument("--batches", metavar="INT", type=int, default=32,
 	help="Number of maximum mini-batches (32)")
+parser.add_argument("--supervised", metavar="FILE",
+	help="Path to file with population assignments")
 parser.add_argument("--check", metavar="INT", type=int, default=5,
 	help="Number of iterations between check for convergence")
 parser.add_argument("--power", metavar="INT", type=int, default=11,
@@ -54,7 +56,7 @@ def main():
 		parser.print_help()
 		sys.exit()
 	print("-------------------------------------------------")
-	print(f"fastmixture v0.7")
+	print(f"fastmixture v0.8")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
 	print(f"K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
@@ -68,7 +70,7 @@ def main():
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "batches"]
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
-		log.write("fastmixture v0.7\n")
+		log.write("fastmixture v0.8\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
 		log.write(f"Directory: {os.getcwd()}\n")
 		log.write("Options:\n")
@@ -91,6 +93,7 @@ def main():
 	# Load numerical libraries
 	import numpy as np
 	from math import ceil
+	from fastmixture import em
 	from fastmixture import functions
 	from fastmixture import shared
 
@@ -113,19 +116,43 @@ def main():
 	del B
 	print(f"\rLoaded {N} samples and {M} SNPs.")
 
-	# Initalize parameters
-	f = np.zeros(M)
-	shared.estimateFreq(G, f, args.threads)
+	# Supervised setting
+	if args.supervised is not None:
+		print("Ancestry estimation in supervised mode!")
+		y = np.loadtxt(args.supervised, dtype=np.uint8).reshape(-1)
+		assert y.shape[0] == N, "Number of samples differ between files!"
+		assert np.max(y) <= args.K, "Wrong number of ancestral sources!"
+		assert np.min(y) >= 0, "Wrong format in population assignments!"
+		print(f"{np.sum(y > 0)}/{N} individuals with fixed ancestry.")
 
-	# Initialize P and Q matrices from SVD and ALS
-	ts = time()
-	print("Performing SVD and ALS.", end="", flush=True)
-	U, V = functions.randomizedSVD(G, f, args.K-1, args.chunk, args.power, \
-		args.seed, args.threads)
-	P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, args.als_tole, \
-		args.seed)
-	print(f"\rExtracted factor matrices ({round(time()-ts,1)} seconds).")
-	del f, U, V
+		# Count individuals in ancestral sources
+		z, x = np.unique(y[y > 0], return_counts=True)
+		z -= 1
+		x = x[np.argsort(z)]
+		z = np.sort(z)
+
+		# Setup containers and initialize
+		P = np.random.rand(M, args.K)
+		Q = np.random.rand(N, args.K)
+		P[:,z] = 0.0
+		shared.initP(G, P, y, x, args.threads)
+		shared.initQ(Q, y)
+		del z, x
+	else:
+		# Initalize parameters in standard unsupervised mode
+		y = None
+		f = np.zeros(M)
+		shared.estimateFreq(G, f, args.threads)
+
+		# Initialize P and Q matrices from SVD and ALS
+		ts = time()
+		print("Performing SVD and ALS.", end="", flush=True)
+		U, V = functions.randomizedSVD(G, f, args.K-1, args.chunk, args.power, \
+			args.seed, args.threads)
+		P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, args.als_tole, \
+			args.seed)
+		print(f"\rExtracted factor matrices ({round(time()-ts,1)} seconds).")
+		del f, U, V
 
 	# Estimate initial log-likelihood
 	ts = time()
@@ -151,8 +178,11 @@ def main():
 
 	# Accelerated priming iteration
 	ts = time()
-	functions.standard(G, P, Q, Q_tmp, args.threads)
-	functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, args.threads)
+	em.updateP(G, P, Q, Q_tmp, args.threads)
+	em.updateQ(Q, Q_tmp, G.shape[0])
+	if y is not None:
+		shared.superQ(Q, y)
+	functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
 	print(f"Performed priming iteration\t({round(time()-ts,1)}s)\n", flush=True)
 
 	# fastmixture algorithm
@@ -164,13 +194,13 @@ def main():
 		if batch: # Quasi-Newton mini-batch updates
 			B_list = np.array_split(np.random.permutation(M), args.batches)
 			for b in B_list:
-				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, np.sort(b), \
+				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, np.sort(b), \
 					args.threads)
 
 			# Quasi-Newton full update
-			functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, args.threads)
+			functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
 		else: # Safety updates with log-likelihood check
-			L_cur = functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, l_vec, L_cur, \
+			L_cur = functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, l_vec, L_cur, \
 				args.threads)
 			if L_cur < L_old: # Break
 				shared.copyP(P, P_old, args.threads)

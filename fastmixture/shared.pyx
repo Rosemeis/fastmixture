@@ -5,7 +5,10 @@ from cython.parallel import prange
 from libc.math cimport log, sqrt
 
 ##### fastmixture ######
-# Inline function
+# Inline functions
+cdef inline double project(double s) noexcept nogil:
+	return min(max(s, 1e-5), 1-(1e-5))
+
 cdef inline double computeH(const double* p, const double* q, int K) noexcept nogil:
 	cdef:
 		int k
@@ -35,6 +38,62 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 				i = i + 1
 				if i == N:
 					break
+
+# Initialize P in supervised mode
+cpdef void initP(const unsigned char[:,::1] G, double[:,::1] P, \
+		const unsigned char[::1] y, const long[::1] x, const int t) \
+		noexcept nogil:
+	cdef:
+		int M = G.shape[0]
+		int N = G.shape[1]
+		int K = P.shape[1]
+		int i, j, k
+	for j in prange(M, num_threads=t):
+		for i in range(N):
+			if y[i] > 0:
+				P[j,y[i]-1] += <double>G[j,i]/<double>(2*(x[y[i]-1]))
+		for k in range(K):
+			P[j,k] = project(P[j,k])
+
+# Initialize Q in supervised mode
+cpdef void initQ(double[:,::1] Q, unsigned char[::1] y) noexcept nogil:
+	cdef:
+		int N = Q.shape[0]
+		int K = Q.shape[1]
+		int i, k
+		double sumQ
+	for i in range(N):
+		if y[i] > 0:
+			for k in range(K):
+				if k == (y[i]-1):
+					Q[i,k] = 1-(1e-5)
+				else:
+					Q[i,k] = 1e-5
+		sumQ = 0.0
+		for k in range(K):
+			Q[i,k] = project(Q[i,k])
+			sumQ += Q[i,k]
+		for k in range(K):
+			Q[i,k] /= sumQ
+
+# Update Q in supervised mode
+cpdef void superQ(double[:,::1] Q, unsigned char[::1] y) noexcept nogil:
+	cdef:
+		int N = Q.shape[0]
+		int K = Q.shape[1]
+		int i, k
+		double sumQ
+	for i in range(N):
+		if y[i] > 0:
+			sumQ = 0.0
+			for k in range(K):
+				if k == (y[i]-1):
+					Q[i,k] = 1-(1e-5)
+				else:
+					Q[i,k] = 1e-5
+				sumQ += Q[i,k]
+			for k in range(K):
+				Q[i,k] /= sumQ
 
 # Estimate minor allele frequencies
 cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f, \
