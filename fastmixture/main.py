@@ -46,6 +46,8 @@ parser.add_argument("--als-tole", metavar="FLOAT", type=float, default=1e-4,
 	help="Tolerance for RMSE of P between iterations (1e-4)")
 parser.add_argument("--no-freqs", action="store_true",
 	help="Do not save P-matrix")
+parser.add_argument("--random-init", action="store_true",
+	help="Random initialization of parameters")
 
 
 
@@ -132,6 +134,7 @@ def main():
 		z = np.sort(z)
 
 		# Setup containers and initialize
+		np.random.seed(args.seed) # Set random seed
 		P = np.random.rand(M, args.K)
 		Q = np.random.rand(N, args.K)
 		P[:,z] = 0.0
@@ -139,20 +142,31 @@ def main():
 		shared.initQ(Q, y)
 		del z, x
 	else:
-		# Initalize parameters in standard unsupervised mode
+		# Initalize parameters in unsupervised mode
 		y = None
-		f = np.zeros(M)
-		shared.estimateFreq(G, f, args.threads)
 
-		# Initialize P and Q matrices from SVD and ALS
-		ts = time()
-		print("Performing SVD and ALS.", end="", flush=True)
-		U, V = functions.randomizedSVD(G, f, args.K-1, args.chunk, args.power, \
-			args.seed, args.threads)
-		P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, args.als_tole, \
-			args.seed)
-		print(f"\rExtracted factor matrices ({round(time()-ts,1)} seconds).")
-		del f, U, V
+		# Random initialization
+		if args.random_init:
+			print("Random initialization.")
+			np.random.seed(args.seed) # Set random seed
+			P = np.random.rand(M, args.K)
+			P.clip(min=1e-5, max=1-(1e-5), out=P)
+			Q = np.random.rand(N, args.K)
+			Q.clip(min=1e-5, max=1-(1e-5), out=Q)
+			Q /= np.sum(Q, axis=1, keepdims=True)
+		else: # SVD-based initialization
+			f = np.zeros(M)
+			shared.estimateFreq(G, f, args.threads)
+
+			# Initialize P and Q matrices from SVD and ALS
+			ts = time()
+			print("Performing SVD and ALS.", end="", flush=True)
+			U, V = functions.randomizedSVD(G, f, args.K-1, args.chunk, args.power, \
+				args.seed, args.threads)
+			P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, \
+				args.als_tole, args.seed)
+			print(f"\rExtracted factor matrices ({round(time()-ts,1)} seconds).")
+			del f, U, V
 
 	# Estimate initial log-likelihood
 	ts = time()
