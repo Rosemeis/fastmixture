@@ -15,7 +15,7 @@ from time import time
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
 parser.add_argument("--version", action="version",
-	version="%(prog)s v0.8")
+	version="%(prog)s v0.9")
 parser.add_argument("-b", "--bfile", metavar="PLINK",
 	help="Prefix for PLINK files (.bed, .bim, .fam)")
 parser.add_argument("-k", "--K", metavar="INT", type=int,
@@ -58,7 +58,7 @@ def main():
 		parser.print_help()
 		sys.exit()
 	print("-------------------------------------------------")
-	print(f"fastmixture v0.8")
+	print(f"fastmixture v0.9")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
 	print(f"K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
@@ -72,7 +72,7 @@ def main():
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "batches"]
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
-		log.write("fastmixture v0.8\n")
+		log.write("fastmixture v0.9\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
 		log.write(f"Directory: {os.getcwd()}\n")
 		log.write("Options:\n")
@@ -176,6 +176,7 @@ def main():
 	print(f"Initial loglike: {round(L_old,1)}")
 
 	# Mini-batch parameters for stochastic EM
+	first = True
 	batch = True
 	batch_L = L_old
 
@@ -216,15 +217,21 @@ def main():
 		else: # Safety updates with log-likelihood check
 			L_cur = functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, l_vec, L_cur, \
 				args.threads)
-			if L_cur < L_old: # Break
-				shared.copyP(P, P_old, args.threads)
-				shared.copyQ(Q, Q_old)
-				L_cur = L_old
-				print("Returning with best estimate!")
-				print(f"Final log-likelihood: {round(L_cur,1)}")
-				converged = True
-				break
-			elif L_cur > L_old:
+			if first:
+				if L_cur < L_std: # Remove guard
+					first = False
+				else:
+					L_std = L_cur
+			else:
+				if L_cur < L_old: # Break
+					shared.copyP(P, P_old, args.threads)
+					shared.copyQ(Q, Q_old)
+					L_cur = L_old
+					print("No improvement. Returning with best estimate!")
+					print(f"Final log-likelihood: {round(L_cur,1)}")
+					converged = True
+					break
+			if L_cur > L_old: # Update best guess
 				shared.copyP(P_old, P, args.threads)
 				shared.copyQ(Q_old, Q)
 				L_old = L_cur
@@ -241,10 +248,15 @@ def main():
 					args.batches = args.batches//2
 					if args.batches > 1:
 						print(f"Using {args.batches} mini-batches.")
+						em.updateP(G, P, Q, Q_tmp, args.threads)
+						em.updateQ(Q, Q_tmp, G.shape[0])
 						batch_L = float('-inf')
 					else: # Turn off mini-batch acceleration
 						print("Running standard updates.")
+						em.updateP(G, P, Q, Q_tmp, args.threads)
+						em.updateQ(Q, Q_tmp, G.shape[0])
 						batch = False
+						L_std = L_cur
 						L_pre = float('-inf')
 						del B_list
 				else:
