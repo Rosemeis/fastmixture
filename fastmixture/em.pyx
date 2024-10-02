@@ -180,6 +180,59 @@ cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] 
 		for k in range(K):
 			P0[j,k] = project(c2*P1[j,k] + c1*P2[j,k])
 
+# Only update P
+cpdef void singleP(const unsigned char[:,::1] G, const double[:,::1] P, \
+		double[:,::1] P_new, const double[:,::1] Q, double[:,:,::1] P_thr, \
+		const int t) noexcept nogil:
+	cdef:
+		int M = G.shape[0]
+		int B = G.shape[1]
+		int N = Q.shape[0]
+		int K = P.shape[1]
+		int i, j, k
+		double a, b, g, h
+	for j in prange(M, num_threads=t):
+		for i in range(N):
+			g = <double>G[j,i]
+			h = computeH(&P[j,0], &Q[i,0], K)
+			a = g/h
+			b = (2.0-g)/(1.0-h)
+			for k in range(K):
+				P_thr[j,0,k] += Q[i,k]*a
+				P_thr[j,1,k] += Q[i,k]*b
+		for k in range(K):
+			P_thr[j,0,k] *= P[j,k]
+			P_new[j,k] = project(P_thr[j,0,k]/(P_thr[j,0,k] + P_thr[j,1,k]*(1.0 - P[j,k])))
+			P_thr[j,0,k] = 0.0
+			P_thr[j,1,k] = 0.0
+
+# Only prepare update for Q
+cpdef void singleQ(const unsigned char[:,::1] G, double[:,::1] P, \
+		const double[:,::1] Q, double[:,::1] Q_tmp, const int t) \
+		noexcept nogil:
+	cdef:
+		int M = G.shape[0]
+		int N = G.shape[1]
+		int K = Q.shape[1]
+		int i, j, k, x, y
+		double a, b, g, h
+		double* Q_thr
+	with nogil, parallel(num_threads=t):
+		Q_thr = <double*>calloc(N*K, sizeof(double))
+		for j in prange(M):
+			for i in range(N):
+				g = <double>G[j,i]
+				h = computeH(&P[j,0], &Q[i,0], K)
+				a = g/h
+				b = (2.0-g)/(1.0-h)
+				for k in range(K):
+					Q_thr[i*K + k] += P[j,k]*a + (1.0 - P[j,k])*b
+		with gil:
+			for x in range(N):
+				for y in range(K):
+					Q_tmp[x,y] += Q_thr[x*K + y]
+		free(Q_thr)
+
 # Update Q
 cpdef void updateQ(double[:,::1] Q, double[:,::1] Q_tmp, const int M) \
 		noexcept nogil:

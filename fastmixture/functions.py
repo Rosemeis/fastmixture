@@ -115,7 +115,7 @@ def quasiBatch(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, s, threads):
 		shared.superQ(Q0, y)
 
 # Full safety update
-def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, L_cur, threads):
+def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, threads):
 	# 1st EM step
 	em.accelP(G, P0, P1, Q0, Q_tmp, threads)
 	em.accelQ(Q0, Q1, Q_tmp, G.shape[0])
@@ -136,10 +136,28 @@ def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, L_cur, threads):
 
 	# Estimate log-likelihood
 	shared.loglike(G, P0, Q0, l_vec, threads)
-	L_new = np.sum(l_vec)
-	if L_new < L_cur:
-		shared.copyP(P0, P2, threads)
-		shared.copyQ(Q0, Q2)
-		shared.loglike(G, P0, Q0, l_vec, threads)
-		L_new = np.sum(l_vec)
-	return L_new
+	return np.sum(l_vec)
+
+# Full safety with independent updates
+def safetySingle(G, P0, Q0, Q_tmp, P1, P2, P_thr, Q1, Q2, y, l_vec, threads):
+	# P steps
+	em.singleP(G, P0, P1, Q0, P_thr, threads)
+	em.singleP(G, P1, P2, Q0, P_thr, threads)
+	em.alphaP(P0, P1, P2, threads)
+
+	# Q steps
+	em.singleQ(G, P0, Q0, Q_tmp, threads)
+	em.accelQ(Q0, Q1, Q_tmp, G.shape[0])
+	if y is not None:
+		shared.superQ(Q1, y)
+	em.singleQ(G, P0, Q1, Q_tmp, threads)
+	em.accelQ(Q1, Q2, Q_tmp, G.shape[0])
+	if y is not None:
+		shared.superQ(Q2, y)
+	em.alphaQ(Q0, Q1, Q2)
+	if y is not None:
+		shared.superQ(Q0, y)
+
+	# Estimate log-likelihood
+	shared.loglike(G, P0, Q0, l_vec, threads)
+	return np.sum(l_vec)

@@ -25,7 +25,7 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 		int N = G.shape[1]
 		int N_b = B.shape[1]
 		int i, j, b, bytepart
-		unsigned char[4] recode = [0, 9, 1, 2]
+		unsigned char[4] recode = [2, 9, 1, 0]
 		unsigned char mask = 3
 		unsigned char byte
 	for j in prange(M, num_threads=t):

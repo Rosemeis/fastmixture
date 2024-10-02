@@ -20,8 +20,8 @@ parser.add_argument("-t", "--threads", type=int, default=1,
 	help="Number of threads (1)")
 parser.add_argument("--bound", type=float, default=1e-5,
 	help="Edge bound for 0 and 1 (1e-5)")
-parser.add_argument("--scope", action="store_true",
-	help="Indicator for SCOPE output files")
+parser.add_argument("--inverse", action="store_true",
+	help="Inverse the P file due to genotype coding")
 parser.add_argument("--loglike", action="store_true",
 	help="Log-likelihood estimates")
 parser.add_argument("--sumsquares", action="store_true",
@@ -59,7 +59,7 @@ from fastmixture import functions
 ### Read data
 # Read Q file
 Q = np.loadtxt(f"{args.qfile}", dtype=float)
-if args.scope:
+if Q.shape[1] > Q.shape[0]:
 	Q = np.ascontiguousarray(Q.T)
 Q.clip(min=args.bound, max=1-(args.bound), out=Q)
 Q /= np.sum(Q, axis=1, keepdims=True)
@@ -86,7 +86,7 @@ else:
 
 	# Read P file
 	P = np.loadtxt(f"{args.pfile}", dtype=float)
-	if args.scope:
+	if args.inverse:
 		P = 1 - P
 	assert P.shape[0] == M, "Number of SNPs doesn't match!"
 	assert P.shape[1] == K, "Number of components doesn't match!"

@@ -176,7 +176,7 @@ def main():
 	print(f"Initial loglike: {round(L_old,1)}")
 
 	# Mini-batch parameters for stochastic EM
-	first = True
+	guard = True
 	batch = True
 	batch_L = L_old
 
@@ -215,15 +215,23 @@ def main():
 			# Quasi-Newton full update
 			functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
 		else: # Safety updates with log-likelihood check
-			L_cur = functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, l_vec, L_cur, \
-				args.threads)
-			if first:
-				if L_cur < L_std: # Remove guard
-					first = False
+			if guard:
+				L_cur = functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, l_vec, \
+					args.threads)
+				if L_cur < L_saf:
+					P_thr = np.zeros((M, 2, args.K))
+					shared.copyP(P, P_old, args.threads)
+					shared.copyQ(Q, Q_old)
+					guard = False
+					L_cur = L_saf
 				else:
-					L_std = L_cur
+					L_saf = L_cur
 			else:
-				if L_cur < L_old: # Break
+				L_cur = functions.safetySingle(G, P, Q, Q_tmp, P1, P2, P_thr, Q1, Q2, \
+					y, l_vec, args.threads)
+				if L_cur > L_saf:
+					L_saf = L_cur
+				else: # Break and exit
 					shared.copyP(P, P_old, args.threads)
 					shared.copyQ(Q, Q_old)
 					L_cur = L_old
@@ -256,7 +264,7 @@ def main():
 						em.updateP(G, P, Q, Q_tmp, args.threads)
 						em.updateQ(Q, Q_tmp, G.shape[0])
 						batch = False
-						L_std = L_cur
+						L_saf = L_cur
 						L_pre = float('-inf')
 						del B_list
 				else:
