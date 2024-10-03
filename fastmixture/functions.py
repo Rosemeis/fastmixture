@@ -139,10 +139,10 @@ def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, threads):
 	return np.sum(l_vec)
 
 # Full safety with independent updates
-def safetySingle(G, P0, Q0, Q_tmp, P1, P2, P_thr, Q1, Q2, y, l_vec, threads):
+def safetySingle(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, threads):
 	# P steps
-	em.singleP(G, P0, P1, Q0, P_thr, threads)
-	em.singleP(G, P1, P2, Q0, P_thr, threads)
+	em.singleP(G, P0, P1, Q0, threads)
+	em.singleP(G, P1, P2, Q0, threads)
 	em.alphaP(P0, P1, P2, threads)
 
 	# Q steps

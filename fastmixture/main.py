@@ -219,7 +219,6 @@ def main():
 				L_cur = functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, l_vec, \
 					args.threads)
 				if L_cur < L_saf:
-					P_thr = np.zeros((M, 2, args.K))
 					shared.copyP(P, P_old, args.threads)
 					shared.copyQ(Q, Q_old)
 					guard = False
@@ -227,8 +226,8 @@ def main():
 				else:
 					L_saf = L_cur
 			else:
-				L_cur = functions.safetySingle(G, P, Q, Q_tmp, P1, P2, P_thr, Q1, Q2, \
-					y, l_vec, args.threads)
+				L_cur = functions.safetySingle(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, \
+					l_vec, args.threads)
 				if L_cur > L_saf:
 					L_saf = L_cur
 				else: # Break and exit
