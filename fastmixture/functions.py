@@ -1,16 +1,31 @@
 import numpy as np
-import subprocess
 from math import ceil
 from fastmixture import em
 from fastmixture import shared
 from fastmixture import svd
 
 ##### fastmixture functions #####
-### PLINK info
-def extract_length(filename):
-	process = subprocess.Popen(['wc', '-l', filename], stdout=subprocess.PIPE)
-	result, _ = process.communicate()
-	return int(result.split()[0])
+### Read PLINK files
+def readPlink(bfile, threads):
+	# Find length of fam-file
+	N = 0
+	with open(f"{bfile}.fam", "r") as fam:
+		for _ in fam:
+			N += 1
+	N_bytes = ceil(N/4) # Length of bytes to describe N individuals
+
+	# Read .bed file
+	with open(f"{bfile}.bed", "rb") as bed:
+		B = np.fromfile(bed, dtype=np.uint8, offset=3)
+	assert (B.shape[0] % N_bytes) == 0, "bim file doesn't match!"
+	M = B.shape[0]//N_bytes
+	B.shape = (M, N_bytes)
+
+	# Read in full genotypes into 8-bit array
+	G = np.zeros((M, N), dtype=np.uint8)
+	shared.expandGeno(B, G, threads)
+	del B
+	return G, M, N
 
 ### Randomized SVD (PCAone Halko)
 def randomizedSVD(G, f, K, chunk, power, seed, threads):
@@ -97,13 +112,13 @@ def quasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, threads):
 # Mini-batch QN update
 def quasiBatch(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, s, threads):
 	# 1st EM step
-	em.batchP(G, P0, P1, Q0, Q_tmp, s, threads)
+	em.accelBatchP(G, P0, P1, Q0, Q_tmp, s, threads)
 	em.accelQ(Q0, Q1, Q_tmp, s.shape[0])
 	if y is not None:
 		shared.superQ(Q1, y)
 
 	# 2nd EM step
-	em.batchP(G, P1, P2, Q1, Q_tmp, s, threads)
+	em.accelBatchP(G, P1, P2, Q1, Q_tmp, s, threads)
 	em.accelQ(Q1, Q2, Q_tmp, s.shape[0])
 	if y is not None:
 		shared.superQ(Q2, y)
@@ -114,43 +129,35 @@ def quasiBatch(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, s, threads):
 	if y is not None:
 		shared.superQ(Q0, y)
 
-# Full safety update
-def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, threads):
-	# 1st EM step
-	em.accelP(G, P0, P1, Q0, Q_tmp, threads)
-	em.accelQ(Q0, Q1, Q_tmp, G.shape[0])
+### Safety updates with independent updates
+# Single updates
+def steps(G, P, Q, Q_tmp, y, threads):
+	em.updateP(G, P, Q, Q_tmp, threads)
+	em.updateQ(Q, Q_tmp, G.shape[0])
 	if y is not None:
-		shared.superQ(Q1, y)
+		shared.superQ(Q, y)
 
-	# 2nd EM step
-	em.accelP(G, P1, P2, Q1, Q_tmp, threads)
-	em.accelQ(Q1, Q2, Q_tmp, G.shape[0])
+# Single safety updates
+def safetySteps(G, P, Q, Q_tmp, y, threads):
+	em.stepP(G, P, Q, threads)
+	em.stepQ(G, P, Q, Q_tmp, threads)
+	em.updateQ(Q, Q_tmp, G.shape[0])
 	if y is not None:
-		shared.superQ(Q2, y)
+		shared.superQ(Q, y)
 
-	# Acceleration update
-	em.alphaP(P0, P1, P2, threads)
-	em.alphaQ(Q0, Q1, Q2)
-	if y is not None:
-		shared.superQ(Q0, y)
-
-	# Estimate log-likelihood
-	shared.loglike(G, P0, Q0, l_vec, threads)
-	return np.sum(l_vec)
-
-# Full safety with independent updates
-def safetySingle(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, threads):
+# Full accelerated safety
+def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, threads):
 	# P steps
-	em.singleP(G, P0, P1, Q0, threads)
-	em.singleP(G, P1, P2, Q0, threads)
+	em.stepAccelP(G, P0, P1, Q0, threads)
+	em.stepAccelP(G, P1, P2, Q0, threads)
 	em.alphaP(P0, P1, P2, threads)
 
 	# Q steps
-	em.singleQ(G, P0, Q0, Q_tmp, threads)
+	em.stepQ(G, P0, Q0, Q_tmp, threads)
 	em.accelQ(Q0, Q1, Q_tmp, G.shape[0])
 	if y is not None:
 		shared.superQ(Q1, y)
-	em.singleQ(G, P0, Q1, Q_tmp, threads)
+	em.stepQ(G, P0, Q1, Q_tmp, threads)
 	em.accelQ(Q1, Q2, Q_tmp, G.shape[0])
 	if y is not None:
 		shared.superQ(Q2, y)
@@ -158,6 +165,32 @@ def safetySingle(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, threads):
 	if y is not None:
 		shared.superQ(Q0, y)
 
-	# Estimate log-likelihood
+# Full accelerated safety with bounceback
+def safetyCheck(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, L_saf, threads):
+	# P steps
+	em.stepAccelP(G, P0, P1, Q0, threads)
+	em.stepAccelP(G, P1, P2, Q0, threads)
+	em.alphaP(P0, P1, P2, threads)
+
+	# Q steps
+	em.stepQ(G, P0, Q0, Q_tmp, threads)
+	em.accelQ(Q0, Q1, Q_tmp, G.shape[0])
+	if y is not None:
+		shared.superQ(Q1, y)
+	em.stepQ(G, P0, Q1, Q_tmp, threads)
+	em.accelQ(Q1, Q2, Q_tmp, G.shape[0])
+	if y is not None:
+		shared.superQ(Q2, y)
+	em.alphaQ(Q0, Q1, Q2)
+	if y is not None:
+		shared.superQ(Q0, y)
+
+	# Likelihood check
 	shared.loglike(G, P0, Q0, l_vec, threads)
-	return np.sum(l_vec)
+	L_cur = np.sum(l_vec)
+	if L_cur < L_saf:
+		shared.copyP(P0, P2, threads)
+		shared.copyQ(Q0, Q2)
+		shared.loglike(G, P0, Q0, l_vec, threads)
+		L_cur = np.sum(l_vec)
+	return L_cur

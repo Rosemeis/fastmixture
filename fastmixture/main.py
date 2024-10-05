@@ -15,7 +15,7 @@ from time import time
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
 parser.add_argument("--version", action="version",
-	version="%(prog)s v0.9")
+	version="%(prog)s v0.91")
 parser.add_argument("-b", "--bfile", metavar="PLINK",
 	help="Prefix for PLINK files (.bed, .bim, .fam)")
 parser.add_argument("-k", "--K", metavar="INT", type=int,
@@ -48,6 +48,8 @@ parser.add_argument("--no-freqs", action="store_true",
 	help="Do not save P-matrix")
 parser.add_argument("--random-init", action="store_true",
 	help="Random initialization of parameters")
+parser.add_argument("--safety", action="store_true",
+	help="Add extra safety steps in unstable optimizations")
 
 
 
@@ -58,7 +60,7 @@ def main():
 		parser.print_help()
 		sys.exit()
 	print("-------------------------------------------------")
-	print(f"fastmixture v0.9")
+	print(f"fastmixture v0.91")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
 	print(f"K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
@@ -72,7 +74,7 @@ def main():
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "batches"]
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
-		log.write("fastmixture v0.9\n")
+		log.write("fastmixture v0.91\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
 		log.write(f"Directory: {os.getcwd()}\n")
 		log.write("Options:\n")
@@ -94,28 +96,16 @@ def main():
 
 	# Load numerical libraries
 	import numpy as np
-	from math import ceil
 	from fastmixture import em
 	from fastmixture import functions
 	from fastmixture import shared
 
 	### Read data
-	# Finding length of .fam and .bim file
 	assert os.path.isfile(f"{args.bfile}.bed"), "bed file doesn't exist!"
-	assert os.path.isfile(f"{args.bfile}.bim"), "bim file doesn't exist!"
+	assert os.path.isfile(f"{args.bfile}.bim"), "bed file doesn't exist!"
 	assert os.path.isfile(f"{args.bfile}.fam"), "fam file doesn't exist!"
 	print("Reading data...", end="", flush=True)
-	N = functions.extract_length(f"{args.bfile}.fam")
-	M = functions.extract_length(f"{args.bfile}.bim")
-	G = np.zeros((M, N), dtype=np.uint8)
-	N_bytes = ceil(N/4) # Length of bytes to describe N individuals
-
-	# Read .bed file
-	with open(f"{args.bfile}.bed", "rb") as bed:
-		B = np.fromfile(bed, dtype=np.uint8, offset=3)
-	B.shape = (M, N_bytes)
-	shared.expandGeno(B, G, args.threads)
-	del B
+	G, M, N = functions.readPlink(args.bfile, args.threads)
 	print(f"\rLoaded {N} samples and {M} SNPs.")
 
 	# Supervised setting
@@ -178,7 +168,7 @@ def main():
 	# Mini-batch parameters for stochastic EM
 	guard = True
 	batch = True
-	batch_L = L_old
+	batch_L = L_pre = L_old
 
 	### EM algorithm
 	# Setup containers for EM algorithm
@@ -193,11 +183,9 @@ def main():
 
 	# Accelerated priming iteration
 	ts = time()
-	em.updateP(G, P, Q, Q_tmp, args.threads)
-	em.updateQ(Q, Q_tmp, G.shape[0])
-	if y is not None:
-		shared.superQ(Q, y)
+	functions.steps(G, P, Q, Q_tmp, y, args.threads)
 	functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
+	functions.steps(G, P, Q, Q_tmp, y, args.threads)
 	print(f"Performed priming iteration\t({round(time()-ts,1)}s)\n", flush=True)
 
 	# fastmixture algorithm
@@ -212,31 +200,42 @@ def main():
 				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, np.sort(b), \
 					args.threads)
 
-			# Quasi-Newton full update
-			functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
-		else: # Safety updates with log-likelihood check
+			# Full updates
+			if args.safety: # Safety updates
+				functions.safetySteps(G, P, Q, Q_tmp, y, args.threads)
+				functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
+				functions.safetySteps(G, P, Q, Q_tmp, y, args.threads)
+			else:
+				functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
+		else: # Updates with log-likelihood check
 			if guard:
-				L_cur = functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, l_vec, \
-					args.threads)
-				if L_cur < L_saf:
+				if args.safety:
+					functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
+					functions.safetySteps(G, P, Q, Q_tmp, y, args.threads)
+				else:
+					functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
+					functions.steps(G, P, Q, Q_tmp, y, args.threads)
+				shared.loglike(G, P, Q, l_vec, args.threads)
+				L_cur = np.sum(l_vec)
+				if L_cur > L_saf:
+					L_saf = L_cur
+				else: # Remove guard and perform safety updates
 					shared.copyP(P, P_old, args.threads)
 					shared.copyQ(Q, Q_old)
 					guard = False
-					L_cur = L_saf
-				else:
-					L_saf = L_cur
-			else:
-				L_cur = functions.safetySingle(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, \
-					l_vec, args.threads)
+					L_saf = L_old
+			else: # Safety updates
+				L_cur = functions.safetyCheck(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, \
+					l_vec, L_saf, args.threads)
 				if L_cur > L_saf:
 					L_saf = L_cur
-				else: # Break and exit
+				else: # Break and exit with best estimate
 					shared.copyP(P, P_old, args.threads)
 					shared.copyQ(Q, Q_old)
+					converged = True
 					L_cur = L_old
 					print("No improvement. Returning with best estimate!")
 					print(f"Final log-likelihood: {round(L_cur,1)}")
-					converged = True
 					break
 			if L_cur > L_old: # Update best guess
 				shared.copyP(P_old, P, args.threads)
@@ -250,22 +249,31 @@ def main():
 				L_cur = np.sum(l_vec)
 				L = f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)"
 				print(L, flush=True)
-				if (L_cur < batch_L) or (abs(L_cur - batch_L) < args.tole):					
+				if (L_cur < L_pre) and (not args.safety): # Check unstable mini-batch
+					print("Turning on safety updates.")
+					shared.copyP(P, P_old, args.threads)
+					shared.copyQ(Q, Q_old)
+					functions.safetySteps(G, P, Q, Q_tmp, y, args.threads)
+					shared.loglike(G, P, Q, l_vec, args.threads)
+					L_cur = np.sum(l_vec)
+					batch_L = float('-inf')
+					args.safety = True
+				if (L_cur < batch_L) or (abs(L_cur - batch_L) < args.tole):				
 					# Halve number of batches
 					args.batches = args.batches//2
 					if args.batches > 1:
 						print(f"Using {args.batches} mini-batches.")
-						em.updateP(G, P, Q, Q_tmp, args.threads)
-						em.updateQ(Q, Q_tmp, G.shape[0])
+						L_pre = L_cur
 						batch_L = float('-inf')
+						if not args.safety:
+							functions.steps(G, P, Q, Q_tmp, y, args.threads)
 					else: # Turn off mini-batch acceleration
 						print("Running standard updates.")
-						em.updateP(G, P, Q, Q_tmp, args.threads)
-						em.updateQ(Q, Q_tmp, G.shape[0])
 						batch = False
 						L_saf = L_cur
-						L_pre = float('-inf')
 						del B_list
+						if not args.safety:
+							functions.steps(G, P, Q, Q_tmp, y, args.threads)
 				else:
 					batch_L = L_cur
 					if L_cur > L_old:
@@ -276,9 +284,13 @@ def main():
 				L = f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)"
 				print(L, flush=True)
 				if (abs(L_cur - L_pre) < args.tole):
+					if L_cur < L_old:
+						shared.copyP(P, P_old, args.threads)
+						shared.copyQ(Q, Q_old)
+						L_cur = L_old
+					converged = True
 					print("Converged!")
 					print(f"Final log-likelihood: {round(L_cur,1)}")
-					converged = True
 					break
 				L_pre = L_cur
 			ts = time()

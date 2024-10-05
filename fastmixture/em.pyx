@@ -17,33 +17,50 @@ cdef inline double computeH(const double* p, const double* q, int K) noexcept no
 		h += p[k]*q[k]
 	return h
 
-cdef inline void innerP(const double* p, const double* q, double* p_thr, \
-		double* q_thr, const double a, const double b, const int K) noexcept nogil:
+cdef inline void innerJ(const double* p, const double* q, double* p_a, \
+		double* p_b, double* q_thr, const double a, const double b, const int K) \
+		noexcept nogil:
 	cdef:
 		int k
 	for k in range(K):
-		p_thr[k] += q[k]*a
-		p_thr[K+k] += q[k]*b
+		p_a[k] += q[k]*a
+		p_b[k] += q[k]*b
 		q_thr[k] += p[k]*a + (1.0 - p[k])*b
 
-cdef inline void outerP(double* p, double* p_thr, const int K) noexcept nogil:
+cdef inline void innerP(const double* q, double* p_a, double* p_b, \
+		const double a, const double b, const int K) noexcept nogil:
 	cdef:
 		int k
 	for k in range(K):
-		p_thr[k] *= p[k]
-		p[k] = project(p_thr[k]/(p_thr[k] + p_thr[K+k]*(1.0 - p[k])))
-		p_thr[k] = 0.0
-		p_thr[K+k] = 0.0
+		p_a[k] += q[k]*a
+		p_b[k] += q[k]*b
 
-cdef inline void outerAccelP(const double* p, double* p_new, double* p_thr, \
-		const int K) noexcept nogil:
+cdef inline void innerQ(const double* p, double* q_thr, \
+		const double a, const double b, const int K) noexcept nogil:
 	cdef:
 		int k
 	for k in range(K):
-		p_thr[k] *= p[k]
-		p_new[k] = project(p_thr[k]/(p_thr[k] + p_thr[K+k]*(1.0 - p[k])))
-		p_thr[k] = 0.0
-		p_thr[K+k] = 0.0
+		q_thr[k] += p[k]*a + (1.0 - p[k])*b
+
+cdef inline void outerP(double* p, double* p_a, double* p_b, const int K) \
+		noexcept nogil:
+	cdef:
+		int k
+	for k in range(K):
+		p_a[k] *= p[k]
+		p[k] = project(p_a[k]/(p_a[k] + p_b[k]*(1.0 - p[k])))
+		p_a[k] = 0.0
+		p_b[k] = 0.0
+
+cdef inline void outerAccelP(const double* p, double* p_new, double* p_a, \
+		double* p_b, const int K) noexcept nogil:
+	cdef:
+		int k
+	for k in range(K):
+		p_a[k] *= p[k]
+		p_new[k] = project(p_a[k]/(p_a[k] + p_b[k]*(1.0 - p[k])))
+		p_a[k] = 0.0
+		p_b[k] = 0.0
 
 cdef inline void outerQ(double* q, double* q_tmp, const double a, const int K) \
 		noexcept nogil:
@@ -104,7 +121,7 @@ cdef inline double computeBatchC(const double* p0, const double* p1, const doubl
 
 
 ### Update functions
-# Update P and temp Q arrays
+# Update P and Q temp arrays
 cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 		const double[:,::1] Q, double[:,::1] Q_tmp, const int t) \
 		noexcept nogil:
@@ -125,8 +142,8 @@ cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 				h = computeH(&P[j,0], &Q[i,0], K)
 				a = g/h
 				b = (2.0-g)/(1.0-h)
-				innerP(&P[j,0], &Q[i,0], &P_thr[0], &Q_thr[i*K], a, b, K)
-			outerP(&P[j,0], &P_thr[0], K)
+				innerJ(&P[j,0], &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], a, b, K)
+			outerP(&P[j,0], &P_thr[0], &P_thr[K], K)
 		with gil:
 			for x in range(N):
 				for y in range(K):
@@ -156,8 +173,8 @@ cpdef void accelP(const unsigned char[:,::1] G, const double[:,::1] P, \
 				h = computeH(&P[j,0], &Q[i,0], K)
 				a = g/h
 				b = (2.0-g)/(1.0-h)
-				innerP(&P[j,0], &Q[i,0], &P_thr[0], &Q_thr[i*K], a, b, K)
-			outerAccelP(&P[j,0], &P_new[j,0], &P_thr[0], K)
+				innerJ(&P[j,0], &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], a, b, K)
+			outerAccelP(&P[j,0], &P_new[j,0], &P_thr[0], &P_thr[K], K)
 		with gil:
 			for x in range(N):
 				for y in range(K):
@@ -180,59 +197,7 @@ cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] 
 		for k in range(K):
 			P0[j,k] = project(c2*P1[j,k] + c1*P2[j,k])
 
-# Only update P
-cpdef void singleP(const unsigned char[:,::1] G, const double[:,::1] P, \
-		double[:,::1] P_new, const double[:,::1] Q, const int t) noexcept nogil:
-	cdef:
-		int M = G.shape[0]
-		int B = G.shape[1]
-		int N = Q.shape[0]
-		int K = P.shape[1]
-		int i, j, k
-		double a, b, g, h
-		double* P_thr
-	with nogil, parallel(num_threads=t):
-		P_thr = <double*>calloc(2*K, sizeof(double))
-		for j in prange(M):
-			for i in range(N):
-				g = <double>G[j,i]
-				h = computeH(&P[j,0], &Q[i,0], K)
-				a = g/h
-				b = (2.0-g)/(1.0-h)
-				for k in range(K):
-					P_thr[k] += Q[i,k]*a
-					P_thr[K+k] += Q[i,k]*b
-			outerAccelP(&P[j,0], &P_new[j,0], &P_thr[0], K)
-		free(P_thr)
-
-# Only prepare update for Q
-cpdef void singleQ(const unsigned char[:,::1] G, double[:,::1] P, \
-		const double[:,::1] Q, double[:,::1] Q_tmp, const int t) \
-		noexcept nogil:
-	cdef:
-		int M = G.shape[0]
-		int N = G.shape[1]
-		int K = Q.shape[1]
-		int i, j, k, x, y
-		double a, b, g, h
-		double* Q_thr
-	with nogil, parallel(num_threads=t):
-		Q_thr = <double*>calloc(N*K, sizeof(double))
-		for j in prange(M):
-			for i in range(N):
-				g = <double>G[j,i]
-				h = computeH(&P[j,0], &Q[i,0], K)
-				a = g/h
-				b = (2.0-g)/(1.0-h)
-				for k in range(K):
-					Q_thr[i*K + k] += P[j,k]*a + (1.0 - P[j,k])*b
-		with gil:
-			for x in range(N):
-				for y in range(K):
-					Q_tmp[x,y] += Q_thr[x*K + y]
-		free(Q_thr)
-
-# Update Q
+# Update Q from temp arrays
 cpdef void updateQ(double[:,::1] Q, double[:,::1] Q_tmp, const int M) \
 		noexcept nogil:
 	cdef:
@@ -275,7 +240,7 @@ cpdef void alphaQ(double[:,::1] Q0, const double[:,::1] Q1, const double[:,::1] 
 
 ### Batch functions
 # Update P in acceleration
-cpdef void batchP(const unsigned char[:,::1] G, double[:,::1] P, \
+cpdef void accelBatchP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		double[:,::1] P_new, const double[:,::1] Q, double[:,::1] Q_tmp, \
 		const long[::1] s, const int t) noexcept nogil:
 	cdef:
@@ -296,8 +261,8 @@ cpdef void batchP(const unsigned char[:,::1] G, double[:,::1] P, \
 				h = computeH(&P[l,0], &Q[i,0], K)
 				a = g/h
 				b = (2.0-g)/(1.0-h)
-				innerP(&P[l,0], &Q[i,0], &P_thr[0], &Q_thr[i*K], a, b, K)
-			outerAccelP(&P[l,0], &P_new[l,0], &P_thr[0], K)
+				innerJ(&P[l,0], &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], a, b, K)
+			outerAccelP(&P[l,0], &P_new[l,0], &P_thr[0], &P_thr[K], K)
 		with gil:
 			for x in range(N):
 				for y in range(K):
@@ -321,3 +286,79 @@ cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, \
 		l = s[j]
 		for k in range(K):
 			P0[l,k] = project(c2*P1[l,k] + c1*P2[l,k])
+
+### Safety steps
+# Update P
+cpdef void stepP(const unsigned char[:,::1] G, double[:,::1] P, \
+		const double[:,::1] Q, const int t) \
+		noexcept nogil:
+	cdef:
+		int M = G.shape[0]
+		int N = G.shape[1]
+		int K = Q.shape[1]
+		int i, j, k
+		double a, b, g, h
+		double* P_thr
+	with nogil, parallel(num_threads=t):
+		P_thr = <double*>calloc(2*K, sizeof(double))
+		for j in prange(M):
+			for i in range(N):
+				g = <double>G[j,i]
+				h = computeH(&P[j,0], &Q[i,0], K)
+				a = g/h
+				b = (2.0-g)/(1.0-h)
+				innerP(&Q[i,0], &P_thr[0], &P_thr[K], a, b, K)
+				for k in range(K):
+					P_thr[k] += Q[i,k]*a
+					P_thr[K+k] += Q[i,k]*b
+			outerP(&P[j,0], &P_thr[0], &P_thr[K], K)
+		free(P_thr)
+
+# Update accelerated P
+cpdef void stepAccelP(const unsigned char[:,::1] G, const double[:,::1] P, \
+		double[:,::1] P_new, const double[:,::1] Q, const int t) \
+		noexcept nogil:
+	cdef:
+		int M = G.shape[0]
+		int N = G.shape[1]
+		int K = Q.shape[1]
+		int i, j, k
+		double a, b, g, h
+		double* P_thr
+	with nogil, parallel(num_threads=t):
+		P_thr = <double*>calloc(2*K, sizeof(double))
+		for j in prange(M):
+			for i in range(N):
+				g = <double>G[j,i]
+				h = computeH(&P[j,0], &Q[i,0], K)
+				a = g/h
+				b = (2.0-g)/(1.0-h)
+				innerP(&Q[i,0], &P_thr[0], &P_thr[K], a, b, K)
+			outerAccelP(&P[j,0], &P_new[j,0], &P_thr[0], &P_thr[K], K)
+		free(P_thr)
+
+# Update Q temp arrays
+cpdef void stepQ(const unsigned char[:,::1] G, double[:,::1] P, \
+		const double[:,::1] Q, double[:,::1] Q_tmp, const int t) \
+		noexcept nogil:
+	cdef:
+		int M = G.shape[0]
+		int N = G.shape[1]
+		int K = Q.shape[1]
+		int i, j, k, x, y
+		double a, b, g, h
+		double* Q_thr
+	with nogil, parallel(num_threads=t):
+		Q_thr = <double*>calloc(N*K, sizeof(double))
+		for j in prange(M):
+			for i in range(N):
+				g = <double>G[j,i]
+				h = computeH(&P[j,0], &Q[i,0], K)
+				a = g/h
+				b = (2.0-g)/(1.0-h)
+				innerQ(&P[j,0], &Q_thr[i*K], a, b, K)
+		with gil:
+			for x in range(N):
+				for y in range(K):
+					Q_tmp[x,y] += Q_thr[x*K + y]
+		free(Q_thr)
