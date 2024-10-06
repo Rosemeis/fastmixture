@@ -145,7 +145,7 @@ def safetySteps(G, P, Q, Q_tmp, y, threads):
 	if y is not None:
 		shared.superQ(Q, y)
 
-# Full accelerated safety
+# Full accelerated safety update
 def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, threads):
 	# P steps
 	em.stepAccelP(G, P0, P1, Q0, threads)
@@ -165,7 +165,7 @@ def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, threads):
 	if y is not None:
 		shared.superQ(Q0, y)
 
-# Full accelerated safety with bounceback
+# Full accelerated safety update with bounceback
 def safetyCheck(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, L_saf, threads):
 	# P steps
 	em.stepAccelP(G, P0, P1, Q0, threads)

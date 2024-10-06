@@ -15,7 +15,7 @@ from time import time
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
 parser.add_argument("--version", action="version",
-	version="%(prog)s v0.91")
+	version="%(prog)s v0.92")
 parser.add_argument("-b", "--bfile", metavar="PLINK",
 	help="Prefix for PLINK files (.bed, .bim, .fam)")
 parser.add_argument("-k", "--K", metavar="INT", type=int,
@@ -60,7 +60,7 @@ def main():
 		parser.print_help()
 		sys.exit()
 	print("-------------------------------------------------")
-	print(f"fastmixture v0.91")
+	print(f"fastmixture v0.92")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
 	print(f"K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
@@ -74,7 +74,7 @@ def main():
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "batches"]
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
-		log.write("fastmixture v0.91\n")
+		log.write("fastmixture v0.92\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
 		log.write(f"Directory: {os.getcwd()}\n")
 		log.write("Options:\n")
@@ -253,33 +253,32 @@ def main():
 					print("Turning on safety updates.")
 					shared.copyP(P, P_old, args.threads)
 					shared.copyQ(Q, Q_old)
-					functions.safetySteps(G, P, Q, Q_tmp, y, args.threads)
-					shared.loglike(G, P, Q, l_vec, args.threads)
-					L_cur = np.sum(l_vec)
+					L_cur = L_old
 					batch_L = float('-inf')
 					args.safety = True
-				if (L_cur < batch_L) or (abs(L_cur - batch_L) < args.tole):				
-					# Halve number of batches
-					args.batches = args.batches//2
-					if args.batches > 1:
-						print(f"Using {args.batches} mini-batches.")
-						L_pre = L_cur
-						batch_L = float('-inf')
-						if not args.safety:
-							functions.steps(G, P, Q, Q_tmp, y, args.threads)
-					else: # Turn off mini-batch acceleration
-						print("Running standard updates.")
-						batch = False
-						L_saf = L_cur
-						del B_list
-						if not args.safety:
-							functions.steps(G, P, Q, Q_tmp, y, args.threads)
 				else:
-					batch_L = L_cur
-					if L_cur > L_old:
-						shared.copyP(P_old, P, args.threads)
-						shared.copyQ(Q_old, Q)
-						L_old = L_cur
+					if (L_cur < batch_L) or (abs(L_cur - batch_L) < args.tole):				
+						# Halve number of batches
+						args.batches = args.batches//2
+						if args.batches > 1:
+							print(f"Using {args.batches} mini-batches.")
+							L_pre = L_cur
+							batch_L = float('-inf')
+							if not args.safety:
+								functions.steps(G, P, Q, Q_tmp, y, args.threads)
+						else: # Turn off mini-batch acceleration
+							print("Running standard updates.")
+							batch = False
+							L_saf = L_cur
+							del B_list
+							if not args.safety:
+								functions.steps(G, P, Q, Q_tmp, y, args.threads)
+					else:
+						batch_L = L_cur
+						if L_cur > L_old:
+							shared.copyP(P_old, P, args.threads)
+							shared.copyQ(Q_old, Q)
+							L_old = L_cur
 			else:
 				L = f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)"
 				print(L, flush=True)
