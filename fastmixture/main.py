@@ -96,7 +96,6 @@ def main():
 
 	# Load numerical libraries
 	import numpy as np
-	from fastmixture import em
 	from fastmixture import functions
 	from fastmixture import shared
 

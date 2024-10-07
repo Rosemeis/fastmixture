@@ -52,7 +52,6 @@ os.environ["OPENBLAS_NUM_THREADS"] = str(args.threads)
 
 # Import numerical libraries
 import numpy as np
-from math import ceil
 from fastmixture import shared
 from fastmixture import functions
 
@@ -70,19 +69,8 @@ if args.rmse or args.jsd:
 	# Ground truth Q file
 	S = np.loadtxt(f"{args.tfile}", dtype=float)
 else:
-	# Finding length of .fam and .bim file and finding chromosome indices
-	N = functions.extract_length(f"{args.bfile}.fam")
-	M = functions.extract_length(f"{args.bfile}.bim")
-	G = np.zeros((M, N), dtype=np.uint8)
-	N_bytes = ceil(N/4) # Length of bytes to describe N individuals
-	assert Q.shape[0] == N, "Number of individuals doesn't match!"
-
-	# Read .bed file
-	with open(f"{args.bfile}.bed", "rb") as bed:
-		B = np.fromfile(bed, dtype=np.uint8, offset=3)
-	B.shape = (M, N_bytes)
-	shared.expandGeno(B, G, args.threads)
-	del B
+	# Read PLINK files
+	G, M, N = functions.readPlink(args.bfile, args.threads)
 
 	# Read P file
 	P = np.loadtxt(f"{args.pfile}", dtype=float)
