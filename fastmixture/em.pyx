@@ -191,7 +191,7 @@ cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] 
 		int K = P0.shape[1]
 		int j, k
 		double c1, c2
-	c1 = max(1.0, computeC(&P0[0,0], &P1[0,0], &P2[0,0], M, K))
+	c1 = min(max(computeC(&P0[0,0], &P1[0,0], &P2[0,0], M, K), 1.0), 256.0)
 	c2 = 1.0 - c1
 	for j in prange(M, num_threads=t):
 		for k in range(K):
@@ -227,7 +227,7 @@ cpdef void alphaQ(double[:,::1] Q0, const double[:,::1] Q1, const double[:,::1] 
 		int K = Q0.shape[1]
 		int i, k
 		double c1, c2, sumQ
-	c1 = max(1.0, computeC(&Q0[0,0], &Q1[0,0], &Q2[0,0], N, K))
+	c1 = min(max(computeC(&Q0[0,0], &Q1[0,0], &Q2[0,0], N, K), 1.0), 256.0)
 	c2 = 1.0 - c1
 	for i in range(N):
 		sumQ = 0.0
@@ -280,7 +280,7 @@ cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, \
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double c1, c2
-	c1 = max(1.0, computeBatchC(&P0[0,0], &P1[0,0], &P2[0,0], &s[0], M, K))
+	c1 = min(max(computeBatchC(&P0[0,0], &P1[0,0], &P2[0,0], &s[0], M, K), 1.0), 256.0)
 	c2 = 1.0 - c1
 	for j in prange(M, num_threads=t):
 		l = s[j]
