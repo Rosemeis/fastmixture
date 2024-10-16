@@ -74,8 +74,8 @@ cdef inline void outerQ(double* q, double* q_tmp, const double a, const int K) \
 	for k in range(K):
 		q[k] /= sumQ
 
-cdef inline void outerAccelQ(double* q, double* q_new, double* q_tmp, const double a, \
-		const int K) noexcept nogil:
+cdef inline void outerAccelQ(const double* q, double* q_new, double* q_tmp, \
+		const double a, const int K) noexcept nogil:
 	cdef:
 		int k
 		double sumQ = 0.0

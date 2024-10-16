@@ -15,7 +15,7 @@ from time import time
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
 parser.add_argument("--version", action="version",
-	version="%(prog)s v0.93.1")
+	version="%(prog)s v0.93.2")
 parser.add_argument("-b", "--bfile", metavar="PLINK",
 	help="Prefix for PLINK files (.bed, .bim, .fam)")
 parser.add_argument("-k", "--K", metavar="INT", type=int,
@@ -36,8 +36,8 @@ parser.add_argument("--supervised", metavar="FILE",
 	help="Path to population assignment file")
 parser.add_argument("--check", metavar="INT", type=int, default=5,
 	help="Number of iterations between check for convergence")
-parser.add_argument("--power", metavar="INT", type=int, default=12,
-	help="Number of power iterations in randomized SVD (12)")
+parser.add_argument("--power", metavar="INT", type=int, default=11,
+	help="Number of power iterations in randomized SVD (11)")
 parser.add_argument("--chunk", metavar="INT", type=int, default=8192,
 	help="Number of SNPs in chunk operations (8192)")
 parser.add_argument("--als-iter", metavar="INT", type=int, default=1000,
@@ -60,7 +60,7 @@ def main():
 		parser.print_help()
 		sys.exit()
 	print("-------------------------------------------------")
-	print(f"fastmixture v0.93.1")
+	print(f"fastmixture v0.93.2")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
 	print(f"K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
@@ -74,7 +74,7 @@ def main():
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "batches"]
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
-		log.write("fastmixture v0.93.1\n")
+		log.write("fastmixture v0.93.2\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
 		log.write(f"Directory: {os.getcwd()}\n")
 		log.write("Options:\n")

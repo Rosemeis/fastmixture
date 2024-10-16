@@ -4,24 +4,24 @@ import numpy
 
 extensions = [
 	Extension(
-		"fastmixture.em",
-		["fastmixture/em.pyx"],
+		name="fastmixture.em",
+		sources=["fastmixture/em.pyx"],
 		extra_compile_args=['-fopenmp', '-O3', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 	),
 	Extension(
-		"fastmixture.svd",
-		["fastmixture/svd.pyx"],
+		name="fastmixture.svd",
+		sources=["fastmixture/svd.pyx"],
 		extra_compile_args=['-fopenmp', '-O3', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 	),
 	Extension(
-		"fastmixture.shared",
-		["fastmixture/shared.pyx"],
+		name="fastmixture.shared",
+		sources=["fastmixture/shared.pyx"],
 		extra_compile_args=['-fopenmp', '-O3', '-g0', '-Wno-unreachable-code'],
 		extra_link_args=['-fopenmp'],
 		include_dirs=[numpy.get_include()],
@@ -31,7 +31,7 @@ extensions = [
 
 setup(
 	name="fastmixture",
-	version="0.93.1",
+	version="0.93.2",
 	author="Jonas Meisner",
 	author_email="meisnerucph@gmail.com",
 	description="Fast Ancestry Estimation",
@@ -44,6 +44,7 @@ setup(
         "Operating System :: OS Independent",
         "Development Status :: 4 - Beta",
     ],
+	ext_modules=cythonize(extensions),
 	python_requires=">=3.7",
 	install_requires=[
 		"cython>3.0.0",
@@ -53,6 +54,4 @@ setup(
 	entry_points={
 		"console_scripts": ["fastmixture=fastmixture.main:main"]
 	},
-	ext_modules=cythonize(extensions),
-	include_dirs=[numpy.get_include()]
 )
