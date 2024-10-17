@@ -41,7 +41,7 @@ apptainer pull docker://albarema/fastmixture:v0.93.3
 ```
 
 #### Run `fastmixture` container
-fastmixture is 
+ 
 ```bash
 # mount the directory containing the PLINK files using --volume flag (e.g. `pwd`/project-data/) 
 # indicate the cpus available for the container to run
