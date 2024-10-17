@@ -28,6 +28,30 @@ conda activate fastmixture
 # You can now run the program with the `fastmixture` command
 ```
 
+### Using the docker image via Docker or Apptainer
+`fastmixture` container image is available at [dockerhub](https://hub.docker.com/repository/docker/albarema/fastmixture/general)
+
+#### Pull `fastmixture` container image 
+
+```bash
+# docker command-line
+docker pull albarema/fastmixture:v0.93.3
+# singularity/apptainer
+apptainer pull docker://albarema/fastmixture:v0.93.3
+```
+
+#### Run `fastmixture` container
+fastmixture is 
+```bash
+# mount the directory containing the PLINK files using --volume flag (e.g. `pwd`/project-data/) 
+# indicate the cpus available for the container to run
+# e.g. data prefix is 'toy.data' and results prefix is 'toy.fast'
+docker run --cpus=8 -v `pwd`/project-data/:/data/ albarema/fastmixture:v0.93.3 fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
+
+# singularity/apptainer
+apptainer run albarema/fastmixture:v0.93.3 fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
+```
+
 ## Citation
 Please cite our [preprint on BioRxiv](https://doi.org/10.1101/2024.07.08.602454).
 
