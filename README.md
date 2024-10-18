@@ -37,7 +37,7 @@ conda activate fastmixture
 # docker command-line
 docker pull albarema/fastmixture:v0.93.3
 # singularity/apptainer
-apptainer pull docker://albarema/fastmixture:v0.93.3
+apptainer pull fastmixture.sif docker://albarema/fastmixture:v0.93.3
 ```
 
 #### Run `fastmixture` container
@@ -49,7 +49,7 @@ apptainer pull docker://albarema/fastmixture:v0.93.3
 docker run --cpus=8 -v `pwd`/project-data/:/data/ albarema/fastmixture:v0.93.3 fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
 
 # singularity/apptainer
-apptainer run albarema/fastmixture:v0.93.3 fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
+apptainer run fastmixture.sif fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
 ```
 
 ## Citation
