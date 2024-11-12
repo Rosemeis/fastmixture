@@ -10,6 +10,10 @@
 - [Authors and Acknowledgements](#authors-and-acknowledgements)
 
 ## Installation 
+To run the `fastmixture` software, you have a few options depending on your environment and preference:
+
+1. Installing fastmixture via PyPI or Source Code
+
 ```bash
 # Build and install via PyPI
 pip install fastmixture
@@ -28,8 +32,9 @@ conda activate fastmixture
 # You can now run the program with the `fastmixture` command
 ```
 
-### Using the docker image via Docker or Apptainer
-`fastmixture` container image is available at [dockerhub](https://hub.docker.com/repository/docker/albarema/fastmixture/general)
+2. Using the fastmixture docker image with Docker or Apptainer
+   
+If you prefer or need to use a containerized setup (especially useful in HPC environments), a pre-built fastmixture container image is available on [Docker Hub](https://hub.docker.com/repository/docker/albarema/fastmixture/general)
 
 #### Pull `fastmixture` container image 
 
