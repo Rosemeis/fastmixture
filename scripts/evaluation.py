@@ -32,6 +32,8 @@ parser.add_argument("--jsd", action="store_true",
 	help="Jensen-Shannon divergence to ground-truth")
 parser.add_argument("--tfile",
 	help="Path to ground truth Q-file")
+parser.add_argument("--indices", type=int, nargs='+',
+	help="Output population based estimates")
 
 # Check input
 args = parser.parse_args()
@@ -105,11 +107,28 @@ if args.rmse or args.jsd:
 	# Reorder and compute metric
 	Q = np.ascontiguousarray(Q[:,q_list])
 	S = np.ascontiguousarray(S[:,s_list])
-	if args.rmse:
-		print(f"{shared.rmse(Q, S):.7f}")
+	if args.indices is None:
+		if args.rmse:
+			print(f"{shared.rmse(Q, S):.7f}")
+		else:
+			jsd = (shared.divKL(Q, S) + shared.divKL(S, Q))*0.5
+			print(f"{jsd:.7f}")
 	else:
-		jsd = (shared.divKL(Q, S) + shared.divKL(S, Q))*0.5
-		print(f"{jsd:.7f}")
+		for p in range(len(args.indices)-1):
+			Q_sub = Q[args.indices[p]:args.indices[p+1],:]
+			S_sub = S[args.indices[p]:args.indices[p+1],:]
+			if args.rmse:
+				print(f"{shared.rmse(Q_sub, S_sub):.7f}")
+			else:
+				jsd = (shared.divKL(Q_sub, S_sub) + shared.divKL(S_sub, Q_sub))*0.5
+				print(f"{jsd:.7f}")
+		Q_sub = Q[args.indices[-1]:Q.shape[0],:]
+		S_sub = S[args.indices[-1]:Q.shape[0],:]
+		if args.rmse:
+			print(f"{shared.rmse(Q_sub, S_sub):.7f}")
+		else:
+			jsd = (shared.divKL(Q_sub, S_sub) + shared.divKL(S_sub, Q_sub))*0.5
+			print(f"{jsd:.7f}")
 else:
 	if args.loglike: # Log-likelihood
 		shared.loglike(G, P, Q, l_vec, args.threads)

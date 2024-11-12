@@ -60,13 +60,24 @@ def main():
 		parser.print_help()
 		sys.exit()
 	print("-------------------------------------------------")
-	print(f"fastmixture v0.93.3")
+	print(f"fastmixture v0.93.4")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
 	print(f"K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
+
+	# Check input
 	assert args.bfile is not None, "No input data (--bfile)!"
-	assert args.K > 1, "Please set K > 1 (--K)!"
-	assert args.batches > 1, "Please set a valid number of batches (--batches)!"
+	assert args.K > 1, "Please select K > 1!"
+	assert args.threads > 0, "Please select a valid number of threads!"
+	assert args.seed >= 0, "Please select a valid seed!"
+	assert args.batches > 1, "Please select a valid number of batches!"
+	assert args.iter > 0, "Please select a valid number of iterations!"
+	assert args.tole >= 0.0, "Please select a valid tolerance!"
+	assert args.check > 0, "Please select a valid value for convergence check!"
+	assert args.power > 0, "Please select a valid number of power iterations!"
+	assert args.chunk > 0, "Please select a valid value for chunk size in SVD!"
+	assert args.als_iter > 0, "Please select a valid number of iterations in ALS!"
+	assert args.als_tole >= 0.0, "Please select a valid tolerance in ALS!"
 	start = time()
 
 	# Create log-file of arguments
@@ -74,7 +85,7 @@ def main():
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "batches"]
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
-		log.write("fastmixture v0.93.3\n")
+		log.write("fastmixture v0.93.4\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
 		log.write(f"Directory: {os.getcwd()}\n")
 		log.write("Options:\n")
@@ -90,9 +101,13 @@ def main():
 
 	# Control threads of external numerical libraries
 	os.environ["MKL_NUM_THREADS"] = str(args.threads)
+	os.environ["MKL_MAX_THREADS"] = str(args.threads)
 	os.environ["OMP_NUM_THREADS"] = str(args.threads)
+	os.environ["OMP_MAX_THREADS"] = str(args.threads)
 	os.environ["NUMEXPR_NUM_THREADS"] = str(args.threads)
+	os.environ["NUMEXPR_MAX_THREADS"] = str(args.threads)
 	os.environ["OPENBLAS_NUM_THREADS"] = str(args.threads)
+	os.environ["OPENBLAS_MAX_THREADS"] = str(args.threads)
 
 	# Load numerical libraries
 	import numpy as np
@@ -220,8 +235,8 @@ def main():
 				if L_cur > L_saf:
 					L_saf = L_cur
 				else: # Remove guard and perform safety updates
-					shared.copyP(P, P_old, args.threads)
-					shared.copyQ(Q, Q_old)
+					memoryview(P.ravel())[:] = memoryview(P_old.ravel())
+					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 					guard = False
 					L_saf = L_old
 			else: # Safety updates
@@ -230,16 +245,16 @@ def main():
 				if L_cur > L_saf:
 					L_saf = L_cur
 				else: # Break and exit with best estimate
-					shared.copyP(P, P_old, args.threads)
-					shared.copyQ(Q, Q_old)
+					memoryview(P.ravel())[:] = memoryview(P_old.ravel())
+					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 					converged = True
 					L_cur = L_old
 					print("No improvement. Returning with best estimate!")
 					print(f"Final log-likelihood: {round(L_cur,1)}")
 					break
 			if L_cur > L_old: # Update best guess
-				shared.copyP(P_old, P, args.threads)
-				shared.copyQ(Q_old, Q)
+				memoryview(P_old.ravel())[:] = memoryview(P.ravel())
+				memoryview(Q_old.ravel())[:] = memoryview(Q.ravel())
 				L_old = L_cur
 
 		# Log-likelihood convergence check
@@ -251,8 +266,8 @@ def main():
 				print(L, flush=True)
 				if (L_cur < L_pre) and (not args.safety): # Check unstable mini-batch
 					print("Turning on safety updates.")
-					shared.copyP(P, P_old, args.threads)
-					shared.copyQ(Q, Q_old)
+					memoryview(P.ravel())[:] = memoryview(P_old.ravel())
+					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 					L_cur = L_old
 					batch_L = float('-inf')
 					args.safety = True
@@ -276,16 +291,16 @@ def main():
 					else:
 						batch_L = L_cur
 						if L_cur > L_old:
-							shared.copyP(P_old, P, args.threads)
-							shared.copyQ(Q_old, Q)
+							memoryview(P_old.ravel())[:] = memoryview(P.ravel())
+							memoryview(Q_old.ravel())[:] = memoryview(Q.ravel())
 							L_old = L_cur
 			else:
 				L = f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)"
 				print(L, flush=True)
 				if (abs(L_cur - L_pre) < args.tole):
 					if L_cur < L_old:
-						shared.copyP(P, P_old, args.threads)
-						shared.copyQ(Q, Q_old)
+						memoryview(P.ravel())[:] = memoryview(P_old.ravel())
+						memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 						L_cur = L_old
 					converged = True
 					print("Converged!")

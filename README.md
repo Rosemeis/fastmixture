@@ -1,4 +1,4 @@
-# fastmixture (v0.93.3)
+# fastmixture (v0.93.4)
 `fastmixture` is a new software for estimating ancestry proportions in unrelated individuals. It is significantly faster than previous model-based software while providing accurate and robust ancestry estimates.
 
 
@@ -21,7 +21,7 @@ pip install .
 
 # or download source and install in new Conda environment
 git clone https://github.com/Rosemeis/fastmixture.git
-conda env create -f environment.yml
+conda env create -f fastmixture/environment.yml
 conda activate fastmixture
 
 

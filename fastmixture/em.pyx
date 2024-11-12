@@ -6,10 +6,11 @@ from libc.stdlib cimport calloc, free
 
 ##### fastmixture #####
 ### Inline functions
-cdef inline double project(double s) noexcept nogil:
+cdef inline double project(const double s) noexcept nogil:
 	return min(max(s, 1e-5), 1-(1e-5))
 
-cdef inline double computeH(const double* p, const double* q, int K) noexcept nogil:
+cdef inline double computeH(const double* p, const double* q, const int K) \
+		noexcept nogil:
 	cdef:
 		int k
 		double h = 0.0

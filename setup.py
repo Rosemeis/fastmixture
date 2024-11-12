@@ -31,7 +31,7 @@ extensions = [
 
 setup(
 	name="fastmixture",
-	version="0.93.3",
+	version="0.93.4",
 	author="Jonas Meisner",
 	author_email="meisnerucph@gmail.com",
 	description="Fast Ancestry Estimation",
@@ -45,7 +45,7 @@ setup(
         "Development Status :: 4 - Beta",
     ],
 	ext_modules=cythonize(extensions),
-	python_requires=">=3.7",
+	python_requires=">=3.10",
 	install_requires=[
 		"cython>3.0.0",
 		"numpy>2.0.0"

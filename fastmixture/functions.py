@@ -50,11 +50,13 @@ def randomizedSVD(G, f, K, chunk, power, seed, threads):
 			svd.plinkChunk(G, X, f, M_w, threads)
 			A[M_w:(M_w + X.shape[0])] = np.dot(X, O)
 			H += np.dot(X.T, A[M_w:(M_w + X.shape[0])])
-	Q, R = np.linalg.qr(A, mode="reduced")
+	Q, R1 = np.linalg.qr(A, mode="reduced")
+	Q, R2 = np.linalg.qr(Q, mode="reduced")
+	R = np.dot(R1, R2)
 	B = np.linalg.solve(R.T, H.T)
 	Uhat, S, V = np.linalg.svd(B, full_matrices=False)
 	U = np.dot(Q, Uhat)
-	del A, B, H, O, Q, R, Uhat, X
+	del A, B, H, O, Q, R, R1, R2, Uhat, X
 	U = np.ascontiguousarray(U[:,:K]*S[:K])
 	V = np.ascontiguousarray(V[:K,:].T)
 	return U, V
@@ -71,7 +73,7 @@ def extractFactor(U, V, f, K, iterations, tole, seed):
 
 	# Perform ALS iterations
 	for _ in range(iterations):
-		shared.copyQ(Q0, Q)
+		memoryview(Q0.ravel())[:] = memoryview(Q.ravel())
 
 		# Update P
 		I = np.dot(Q, np.linalg.pinv(np.dot(Q.T, Q)))
@@ -189,8 +191,8 @@ def safetyCheck(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, L_saf, threads):
 	shared.loglike(G, P0, Q0, l_vec, threads)
 	L_cur = np.sum(l_vec)
 	if L_cur < L_saf:
-		shared.copyP(P0, P2, threads)
-		shared.copyQ(Q0, Q2)
+		memoryview(P0.ravel())[:] = memoryview(P2.ravel())
+		memoryview(Q0.ravel())[:] = memoryview(Q2.ravel())
 		shared.loglike(G, P0, Q0, l_vec, threads)
 		L_cur = np.sum(l_vec)
 	return L_cur
