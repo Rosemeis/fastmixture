@@ -34,7 +34,7 @@ To run the `fastmixture` software, you have a few options depending on your envi
 
 2. Using the fastmixture docker image with Docker or Apptainer
    
-   If you prefer or need to use a containerized setup (especially useful in HPC environments), a pre-built fastmixture container image is available on [Docker Hub](https://hub.docker.com/repository/docker/albarema/fastmixture/general)
+   If you prefer or need to use a containerized setup (especially useful in HPC environments), a pre-built fastmixture container image is available on [Docker Hub](https://hub.docker.com/repository/docker/albarema/fastmixture/general). The latest version corresponds to *v0.93.4*. 
 
    A. Using Apptainer (formerly Singularity)
 
@@ -44,7 +44,7 @@ To run the `fastmixture` software, you have a few options depending on your envi
 
    ```bash
    # singularity/apptainer
-   apptainer pull <fastmixture.sif> docker://albarema/fastmixture:v0.93.3
+   apptainer pull <fastmixture.sif> docker://albarema/fastmixture
    ```
    2. Run  `fastmixture` container
    
@@ -58,7 +58,7 @@ To run the `fastmixture` software, you have a few options depending on your envi
 
    ```bash
    # docker command
-   docker pull albarema/fastmixture:v0.93.3
+   docker pull albarema/fastmixture
    ```
 
    2. Run the  `fastmixture` container
@@ -67,7 +67,7 @@ To run the `fastmixture` software, you have a few options depending on your envi
    # mount the directory containing the PLINK files using --volume flag (e.g. `pwd`/project-data/) 
    # indicate the cpus available for the container to run
    # e.g. data prefix is 'toy.data' and results prefix is 'toy.fast'
-   docker run --cpus=8 -v `pwd`/project-data/:/data/ albarema/fastmixture:v0.93.3 fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
+   docker run --cpus=8 -v `pwd`/project-data/:/data/ albarema/fastmixture fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
    ```
 
 ## Citation
