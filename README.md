@@ -18,12 +18,12 @@ To run the `fastmixture` software, you have a few options depending on your envi
    # Option 1: Build and install via PyPI
    pip install fastmixture
 
-   # Option 2: download source and install via pip
+   # Option 2: Download source and install via pip
    git clone https://github.com/Rosemeis/fastmixture.git
    cd fastmixture
    pip install .
    
-   # Option 3: download source and install in new Conda environment
+   # Option 3: Download source and install in a new Conda environment
    git clone https://github.com/Rosemeis/fastmixture.git
    conda env create -f fastmixture/environment.yml
    conda activate fastmixture
