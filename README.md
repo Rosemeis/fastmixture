@@ -34,40 +34,40 @@ To run the `fastmixture` software, you have a few options depending on your envi
 
 2. Using the fastmixture docker image with Docker or Apptainer
    
-   If you prefer or need to use a containerized setup (especially useful in HPC environments), a pre-built fastmixture container image is available on [Docker Hub](https://hub.docker.com/repository/docker/albarema/fastmixture/general). The latest version corresponds to *v0.93.4*. 
+   If you prefer or need to use a containerized setup (especially useful in HPC environments), a pre-built fastmixture container image is available on [Docker Hub](https://hub.docker.com/repository/docker/albarema/fastmixture/general). The latest version corresponds to *v0.93.4*.
 
-   A. Using Apptainer (formerly Singularity)
-
-   For Apptainer/Singularity users, please take a look at your HPC system's documentation for guidance. Apptainer will create the .sif image in your current working directory (pwd) by default. You will later use this image to run the software. If needed, specify a different directory and filename to store the image. Remember to bind the directories where the data is stored (`--bind`). 
-
-   1. Pull `fastmixture` container image into a .sif file that Apptainer can use
-
-   ```bash
-   # singularity/apptainer
-   apptainer pull <fastmixture.sif> docker://albarema/fastmixture
-   ```
-   2. Run  `fastmixture` container
-   
-   ```bash
-   # singularity/apptainer
-   apptainer run <fastmixture.sif> fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
-   ```
-
-   B. Using Docker 
+   A. Using Docker 
    1. Pull the image from  Docker Hub
 
    ```bash
-   # docker command
+   # Docker command
    docker pull albarema/fastmixture
    ```
 
    2. Run the  `fastmixture` container
 
    ```bash
-   # mount the directory containing the PLINK files using --volume flag (e.g. `pwd`/project-data/) 
-   # indicate the cpus available for the container to run
+   # Mount the directory containing the PLINK files using --volume flag (e.g. `pwd`/project-data/) 
+   # Indicate the cpus available for the container to run
    # e.g. data prefix is 'toy.data' and results prefix is 'toy.fast'
    docker run --cpus=8 -v `pwd`/project-data/:/data/ albarema/fastmixture fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
+   ```
+
+   B. Using Apptainer (formerly Singularity)
+
+   For Apptainer/Singularity users, please take a look at your HPC system's documentation for guidance. Apptainer will create the .sif image in your current working directory (pwd) by default. You will later use this image to run the software. If needed, specify a different directory and filename to store the image. Remember to bind the directories where the data is stored (`--bind`). 
+
+   1. Pull `fastmixture` container image into a .sif file that Apptainer can use
+
+   ```bash
+   # Singularity/Apptainer
+   apptainer pull <fastmixture.sif> docker://albarema/fastmixture
+   ```
+   2. Run  `fastmixture` container
+   
+   ```bash
+   # Singularity/Apptainer
+   apptainer run <fastmixture.sif> fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
    ```
 
 ## Citation
