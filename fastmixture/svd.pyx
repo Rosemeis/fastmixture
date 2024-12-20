@@ -16,7 +16,7 @@ cpdef void plinkChunk(const unsigned char[:,::1] G, double[:,::1] X, \
 		int M = X.shape[0]
 		int N = X.shape[1]
 		int i, j
-	for j in prange(M, num_threads=t):
+	for j in prange(M):
 		for i in range(N):
 			X[j,i] = <double>G[M_b+j,i] - 2.0*f[M_b+j]
 

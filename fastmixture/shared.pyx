@@ -2,7 +2,7 @@
 import numpy as np
 cimport numpy as np
 from cython.parallel import prange
-from libc.math cimport log, sqrt
+from libc.math cimport log, log1p, sqrt
 
 ##### fastmixture ######
 # Inline functions
@@ -29,7 +29,7 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 		unsigned char[4] recode = [2, 9, 1, 0]
 		unsigned char mask = 3
 		unsigned char byte
-	for j in prange(M, num_threads=t):
+	for j in prange(M):
 		i = 0
 		for b in range(N_b):
 			byte = B[j,b]
@@ -49,7 +49,7 @@ cpdef void initP(const unsigned char[:,::1] G, double[:,::1] P, \
 		int N = G.shape[1]
 		int K = P.shape[1]
 		int i, j, k
-	for j in prange(M, num_threads=t):
+	for j in prange(M):
 		for i in range(N):
 			if y[i] > 0:
 				P[j,y[i]-1] += <double>G[j,i]/<double>(2*(x[y[i]-1]))
@@ -74,8 +74,9 @@ cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 		for k in range(K):
 			Q[i,k] = project(Q[i,k])
 			sumQ += Q[i,k]
+		sumQ = 1.0/sumQ
 		for k in range(K):
-			Q[i,k] /= sumQ
+			Q[i,k] *= sumQ
 
 # Update Q in supervised mode
 cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
@@ -93,8 +94,9 @@ cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 				else:
 					Q[i,k] = 1e-5
 				sumQ += Q[i,k]
+			sumQ = 1.0/sumQ
 			for k in range(K):
-				Q[i,k] /= sumQ
+				Q[i,k] *= sumQ
 
 # Estimate minor allele frequencies
 cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f, \
@@ -104,7 +106,7 @@ cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f, \
 		int N = G.shape[1]
 		int i, j
 		double n
-	for j in prange(M, num_threads=t):
+	for j in prange(M):
 		n = 0.0
 		for i in range(N):
 			f[j] += <double>G[j,i]
@@ -112,20 +114,21 @@ cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f, \
 		f[j] /= (2.0*n)
 
 # Log-likelihood
-cpdef void loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
-		const double[:,::1] Q, double[::1] l_vec, const int t) noexcept nogil:
+cpdef double loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
+		const double[:,::1] Q, const int t) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int N = G.shape[1]
 		int K = Q.shape[1]
 		int i, j, k
 		double g, h
-	for j in prange(M, num_threads=t):
-		l_vec[j] = 0.0
+		double res = 0.0
+	for j in prange(M):
 		for i in range(N):
 			g = <double>G[j,i]
 			h = computeH(&P[j,0], &Q[i,0], K)
-			l_vec[j] += g*log(h) + (2.0-g)*log(1.0-h)
+			res += g*log(h) + (2.0-g)*log1p(-h)
+	return res
 
 # Root-mean-square error
 cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nogil:
@@ -140,20 +143,21 @@ cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nog
 	return sqrt(r/<double>(N*K))
 
 # Sum-of-squares used in evaluation 
-cpdef void sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
-		const double[:,::1] Q, double[::1] l_vec, const int t) noexcept nogil:
+cpdef double sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
+		const double[:,::1] Q, const int t) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int N = G.shape[1]
 		int K = Q.shape[1]
 		int i, j, k
 		double h, g
-	for j in prange(M, num_threads=t):
-		l_vec[j] = 0.0
+		double res = 0.0
+	for j in prange(M):
 		for i in range(N):
 			g = <double>G[j,i]
-			h = computeH(&P[j,0], &Q[i,0], K)
-			l_vec[j] += (g-2.0*h)*(g-2.0*h)
+			h = 2.0*computeH(&P[j,0], &Q[i,0], K)
+			res += (g-h)*(g-h)
+	return res
 
 # Kullback-Leibler divergence with average for Jensen-Shannon
 cpdef double divKL(const double[:,::1] A, const double[:,::1] B) noexcept nogil:

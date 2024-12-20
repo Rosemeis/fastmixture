@@ -82,9 +82,6 @@ else:
 	assert P.shape[1] == K, "Number of components doesn't match!"
 	P.clip(min=args.bound, max=1-(args.bound), out=P)
 
-	# Initalize parameters
-	l_vec = np.zeros(M)
-
 ### Evaluation
 if args.rmse or args.jsd:
 	# Find best matching pairs between the two files
@@ -131,8 +128,7 @@ if args.rmse or args.jsd:
 			print(f"{jsd:.7f}")
 else:
 	if args.loglike: # Log-likelihood
-		shared.loglike(G, P, Q, l_vec, args.threads)
+		L = shared.loglike(G, P, Q, args.threads)
 	else: # Sum-of-squares
-		shared.sumSquare(G, P, Q, l_vec, args.threads)
-	L = np.sum(l_vec)
+		L = shared.sumSquare(G, P, Q, args.threads)
 	print(f"{round(L,1)}", flush=True)

@@ -72,8 +72,9 @@ cdef inline void outerQ(double* q, double* q_tmp, const double a, const int K) \
 		q[k] = project(q[k]*q_tmp[k]*a)
 		q_tmp[k] = 0.0
 		sumQ += q[k]
+	sumQ = 1.0/sumQ
 	for k in range(K):
-		q[k] /= sumQ
+		q[k] *= sumQ
 
 cdef inline void outerAccelQ(const double* q, double* q_new, double* q_tmp, \
 		const double a, const int K) noexcept nogil:
@@ -84,24 +85,23 @@ cdef inline void outerAccelQ(const double* q, double* q_new, double* q_tmp, \
 		q_new[k] = project(q[k]*q_tmp[k]*a)
 		q_tmp[k] = 0.0
 		sumQ += q_new[k]
+	sumQ = 1.0/sumQ
 	for k in range(K):
-		q_new[k] /= sumQ
+		q_new[k] *= sumQ
 
 cdef inline double computeC(const double* x0, const double* x1, const double* x2, \
-		const int I, const int J) noexcept nogil:
+		const int I) noexcept nogil:
 	cdef:
-		int i, j, k
+		int i
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double u, v
 	for i in range(I):
-		for j in range(J):
-			k = i*J + j
-			u = x1[k]-x0[k]
-			v = (x2[k]-x1[k])-u
-			sum1 += u*u
-			sum2 += u*v
-	return -(sum1/sum2)
+		u = x1[i]-x0[i]
+		v = x2[i]-x1[i]-u
+		sum1 += u*u
+		sum2 += u*v
+	return min(max(-(sum1/sum2), 1.0), 256.0)
 
 cdef inline double computeBatchC(const double* p0, const double* p1, const double* p2, \
 		const long* s, const int I, const int J) noexcept nogil:
@@ -118,7 +118,7 @@ cdef inline double computeBatchC(const double* p0, const double* p1, const doubl
 			v = (p2[k]-p1[k])-u
 			sum1 += u*u
 			sum2 += u*v
-	return -(sum1/sum2)
+	return min(max(-(sum1/sum2), 1.0), 256.0)
 
 
 ### Update functions
@@ -134,7 +134,7 @@ cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 		double a, b, g, h
 		double* P_thr
 		double* Q_thr
-	with nogil, parallel(num_threads=t):
+	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		Q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
@@ -165,7 +165,7 @@ cpdef void accelP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		double a, b, g, h
 		double* P_thr
 		double* Q_thr
-	with nogil, parallel(num_threads=t):
+	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		Q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
@@ -192,9 +192,9 @@ cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] 
 		int K = P0.shape[1]
 		int j, k
 		double c1, c2
-	c1 = min(max(computeC(&P0[0,0], &P1[0,0], &P2[0,0], M, K), 1.0), 256.0)
+	c1 = computeC(&P0[0,0], &P1[0,0], &P2[0,0], M*K)
 	c2 = 1.0 - c1
-	for j in prange(M, num_threads=t):
+	for j in prange(M):
 		for k in range(K):
 			P0[j,k] = project(c2*P1[j,k] + c1*P2[j,k])
 
@@ -228,15 +228,16 @@ cpdef void alphaQ(double[:,::1] Q0, const double[:,::1] Q1, const double[:,::1] 
 		int K = Q0.shape[1]
 		int i, k
 		double c1, c2, sumQ
-	c1 = min(max(computeC(&Q0[0,0], &Q1[0,0], &Q2[0,0], N, K), 1.0), 256.0)
+	c1 = computeC(&Q0[0,0], &Q1[0,0], &Q2[0,0], N*K)
 	c2 = 1.0 - c1
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
 			Q0[i,k] = project(c2*Q1[i,k] + c1*Q2[i,k])
 			sumQ += Q0[i,k]
+		sumQ = 1.0/sumQ
 		for k in range(K):
-			Q0[i,k] /= sumQ	
+			Q0[i,k] *= sumQ	
 
 
 ### Batch functions
@@ -252,7 +253,7 @@ cpdef void accelBatchP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		double a, b, g, h
 		double* P_thr
 		double* Q_thr
-	with nogil, parallel(num_threads=t):
+	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		Q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
@@ -281,9 +282,9 @@ cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, \
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double c1, c2
-	c1 = min(max(computeBatchC(&P0[0,0], &P1[0,0], &P2[0,0], &s[0], M, K), 1.0), 256.0)
+	c1 = computeBatchC(&P0[0,0], &P1[0,0], &P2[0,0], &s[0], M, K)
 	c2 = 1.0 - c1
-	for j in prange(M, num_threads=t):
+	for j in prange(M):
 		l = s[j]
 		for k in range(K):
 			P0[l,k] = project(c2*P1[l,k] + c1*P2[l,k])
@@ -300,7 +301,7 @@ cpdef void stepP(const unsigned char[:,::1] G, double[:,::1] P, \
 		int i, j, k
 		double a, b, g, h
 		double* P_thr
-	with nogil, parallel(num_threads=t):
+	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		for j in prange(M):
 			for i in range(N):
@@ -326,7 +327,7 @@ cpdef void stepAccelP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		int i, j, k
 		double a, b, g, h
 		double* P_thr
-	with nogil, parallel(num_threads=t):
+	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		for j in prange(M):
 			for i in range(N):
@@ -349,7 +350,7 @@ cpdef void stepQ(const unsigned char[:,::1] G, double[:,::1] P, \
 		int i, j, k, x, y
 		double a, b, g, h
 		double* Q_thr
-	with nogil, parallel(num_threads=t):
+	with nogil, parallel():
 		Q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
 			for i in range(N):

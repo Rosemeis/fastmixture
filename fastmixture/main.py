@@ -12,10 +12,12 @@ import sys
 from datetime import datetime
 from time import time
 
+VERSION = "0.93.5"
+
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
 parser.add_argument("--version", action="version",
-	version="%(prog)s v0.93.4")
+	version=f"v{VERSION}")
 parser.add_argument("-b", "--bfile", metavar="PLINK",
 	help="Prefix for PLINK files (.bed, .bim, .fam)")
 parser.add_argument("-k", "--K", metavar="INT", type=int,
@@ -60,7 +62,7 @@ def main():
 		parser.print_help()
 		sys.exit()
 	print("-------------------------------------------------")
-	print(f"fastmixture v0.93.4")
+	print(f"fastmixture v{VERSION}")
 	print("C.G. Santander, A. Refoyo-Martinez and J. Meisner")
 	print(f"K={args.K}, seed={args.seed}, batches={args.batches}, threads={args.threads}")
 	print("-------------------------------------------------\n")
@@ -85,7 +87,7 @@ def main():
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "batches"]
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "w") as log:
-		log.write("fastmixture v0.93.4\n")
+		log.write(f"fastmixture v{VERSION}\n")
 		log.write(f"Time: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
 		log.write(f"Directory: {os.getcwd()}\n")
 		log.write("Options:\n")
@@ -175,17 +177,13 @@ def main():
 
 	# Estimate initial log-likelihood
 	ts = time()
-	l_vec = np.zeros(M)
-	shared.loglike(G, P, Q, l_vec, args.threads)
-	L_old = np.sum(l_vec)
+	L_old = shared.loglike(G, P, Q, args.threads)
 	print(f"Initial loglike: {round(L_old,1)}")
 
 	# Mini-batch parameters for stochastic EM
 	guard = True
-	batch = True
 	batch_L = L_pre = L_old
 
-	### EM algorithm
 	# Setup containers for EM algorithm
 	converged = False
 	P1 = np.zeros((M, args.K))
@@ -203,17 +201,16 @@ def main():
 	functions.steps(G, P, Q, Q_tmp, y, args.threads)
 	print(f"Performed priming iteration\t({round(time()-ts,1)}s)\n", flush=True)
 
-	# fastmixture algorithm
+	### fastmixture algorithm
 	ts = time()
 	print("Estimating Q and P using mini-batch EM.")
 	print(f"Using {args.batches} mini-batches.")
 	np.random.seed(args.seed) # Set random seed
 	for it in np.arange(args.iter):
-		if batch: # Quasi-Newton mini-batch updates
+		if args.batches > 1: # Quasi-Newton mini-batch updates
 			B_list = np.array_split(np.random.permutation(M), args.batches)
 			for b in B_list:
-				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, np.sort(b), \
-					args.threads)
+				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, b, args.threads)
 
 			# Full updates
 			if args.safety: # Safety updates
@@ -230,8 +227,7 @@ def main():
 				else:
 					functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
 					functions.steps(G, P, Q, Q_tmp, y, args.threads)
-				shared.loglike(G, P, Q, l_vec, args.threads)
-				L_cur = np.sum(l_vec)
+				L_cur = shared.loglike(G, P, Q, args.threads)
 				if L_cur > L_saf:
 					L_saf = L_cur
 				else: # Remove guard and perform safety updates
@@ -241,7 +237,7 @@ def main():
 					L_saf = L_old
 			else: # Safety updates
 				L_cur = functions.safetyCheck(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, \
-					l_vec, L_saf, args.threads)
+					L_saf, args.threads)
 				if L_cur > L_saf:
 					L_saf = L_cur
 				else: # Break and exit with best estimate
@@ -259,31 +255,29 @@ def main():
 
 		# Log-likelihood convergence check
 		if (it + 1) % args.check == 0:
-			if batch:
-				shared.loglike(G, P, Q, l_vec, args.threads)
-				L_cur = np.sum(l_vec)
-				L = f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)"
-				print(L, flush=True)
+			if args.batches > 1:
+				L_cur = shared.loglike(G, P, Q, args.threads)
+				print(f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)", \
+		  			flush=True)
 				if (L_cur < L_pre) and (not args.safety): # Check unstable mini-batch
 					print("Turning on safety updates.")
 					memoryview(P.ravel())[:] = memoryview(P_old.ravel())
 					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
-					L_cur = L_old
 					batch_L = float('-inf')
+					L_cur = L_old
 					args.safety = True
 				else:
 					if (L_cur < batch_L) or (abs(L_cur - batch_L) < args.tole):				
 						# Halve number of batches
 						args.batches = args.batches//2
 						if args.batches > 1:
-							print(f"Using {args.batches} mini-batches.")
-							L_pre = L_cur
+							print(f"Halving mini-batches to {args.batches}.")
 							batch_L = float('-inf')
+							L_pre = L_cur
 							if not args.safety:
 								functions.steps(G, P, Q, Q_tmp, y, args.threads)
 						else: # Turn off mini-batch acceleration
 							print("Running standard updates.")
-							batch = False
 							L_saf = L_cur
 							del B_list
 							if not args.safety:
@@ -295,8 +289,8 @@ def main():
 							memoryview(Q_old.ravel())[:] = memoryview(Q.ravel())
 							L_old = L_cur
 			else:
-				L = f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)"
-				print(L, flush=True)
+				print(f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)", \
+		  			flush=True)
 				if (abs(L_cur - L_pre) < args.tole):
 					if L_cur < L_old:
 						memoryview(P.ravel())[:] = memoryview(P_old.ravel())

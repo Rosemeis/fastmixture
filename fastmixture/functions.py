@@ -168,7 +168,7 @@ def safety(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, threads):
 		shared.superQ(Q0, y)
 
 # Full accelerated safety update with bounceback
-def safetyCheck(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, L_saf, threads):
+def safetyCheck(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, L_saf, threads):
 	# P steps
 	em.stepAccelP(G, P0, P1, Q0, threads)
 	em.stepAccelP(G, P1, P2, Q0, threads)
@@ -188,11 +188,9 @@ def safetyCheck(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, y, l_vec, L_saf, threads):
 		shared.superQ(Q0, y)
 
 	# Likelihood check
-	shared.loglike(G, P0, Q0, l_vec, threads)
-	L_cur = np.sum(l_vec)
+	L_cur = shared.loglike(G, P0, Q0, threads)
 	if L_cur < L_saf:
 		memoryview(P0.ravel())[:] = memoryview(P2.ravel())
 		memoryview(Q0.ravel())[:] = memoryview(Q2.ravel())
-		shared.loglike(G, P0, Q0, l_vec, threads)
-		L_cur = np.sum(l_vec)
+		L_cur = shared.loglike(G, P0, Q0, threads)
 	return L_cur
