@@ -11,14 +11,19 @@ cdef inline double project(double s) noexcept nogil:
 
 # Load centered chunk from PLINK file for SVD
 cpdef void plinkChunk(const unsigned char[:,::1] G, double[:,::1] X, \
-		const double[::1] f, const int M_b, const int t) noexcept nogil:
+		const double[::1] f, const int M_b) noexcept nogil:
 	cdef:
 		int M = X.shape[0]
 		int N = X.shape[1]
 		int i, j
+		unsigned char D
 	for j in prange(M):
 		for i in range(N):
-			X[j,i] = <double>G[M_b+j,i] - 2.0*f[M_b+j]
+			D = G[M_b+j,i]
+			if D == 9:
+				X[j,i] = 0.0
+			else:
+				X[j,i] = <double>D - 2.0*f[M_b+j]
 
 # Root-mean square error between two Q matrices
 cpdef double rmse(const double[:,::1] A, const double[:,::1] B) noexcept nogil:
@@ -45,5 +50,6 @@ cpdef void map2domain(double[:,::1] Q) noexcept nogil:
 		for k in range(K):
 			Q[i,k] = project(Q[i,k])
 			sumQ += Q[i,k]
+		sumQ = 1.0/sumQ
 		for k in range(K):
-			Q[i,k] /= sumQ
+			Q[i,k] *= sumQ

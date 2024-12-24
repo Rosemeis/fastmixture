@@ -1,4 +1,4 @@
-# fastmixture (v0.93.5)
+# fastmixture (v0.94.0)
 `fastmixture` is a new software for estimating ancestry proportions in unrelated individuals. It is significantly faster than previous model-based software while providing accurate and robust ancestry estimates.
 
 
@@ -71,7 +71,9 @@ To run the `fastmixture` software, you have a few options depending on your envi
    ```
 
 ## Citation
-Please cite our [preprint on BioRxiv](https://doi.org/10.1101/2024.07.08.602454).
+Please cite our paper in [*Peer Community Journal*](https://peercommunityjournal.org/articles/10.24072/pcjournal.503/).
+
+Preprint also available on [BioRxiv](https://doi.org/10.1101/2024.07.08.602454).
 
 ## Usage
 `fastmixture` requires input data in binary [PLINK](https://www.cog-genomics.org/plink/1.9/input#bed) format. 

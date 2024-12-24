@@ -48,9 +48,13 @@ else:
 
 # Control threads of external numerical libraries
 os.environ["MKL_NUM_THREADS"] = str(args.threads)
+os.environ["MKL_MAX_THREADS"] = str(args.threads)
 os.environ["OMP_NUM_THREADS"] = str(args.threads)
+os.environ["OMP_MAX_THREADS"] = str(args.threads)
 os.environ["NUMEXPR_NUM_THREADS"] = str(args.threads)
+os.environ["NUMEXPR_MAX_THREADS"] = str(args.threads)
 os.environ["OPENBLAS_NUM_THREADS"] = str(args.threads)
+os.environ["OPENBLAS_MAX_THREADS"] = str(args.threads)
 
 # Import numerical libraries
 import numpy as np
@@ -72,7 +76,7 @@ if args.rmse or args.jsd:
 	S = np.loadtxt(f"{args.tfile}", dtype=float)
 else:
 	# Read PLINK files
-	G, M, N = functions.readPlink(args.bfile, args.threads)
+	G, _, M, N = functions.readPlink(args.bfile)
 
 	# Read P file
 	P = np.loadtxt(f"{args.pfile}", dtype=float)
@@ -128,7 +132,7 @@ if args.rmse or args.jsd:
 			print(f"{jsd:.7f}")
 else:
 	if args.loglike: # Log-likelihood
-		L = shared.loglike(G, P, Q, args.threads)
+		L = shared.loglike(G, P, Q)
 	else: # Sum-of-squares
-		L = shared.sumSquare(G, P, Q, args.threads)
+		L = shared.sumSquare(G, P, Q)
 	print(f"{round(L,1)}", flush=True)

@@ -1,7 +1,7 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True
 import numpy as np
 cimport numpy as np
-from cython.parallel import prange, parallel
+from cython.parallel import parallel, prange
 from libc.stdlib cimport calloc, free
 
 ##### fastmixture #####
@@ -124,8 +124,7 @@ cdef inline double computeBatchC(const double* p0, const double* p1, const doubl
 ### Update functions
 # Update P and Q temp arrays
 cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
-		const double[:,::1] Q, double[:,::1] Q_tmp, const int t) \
-		noexcept nogil:
+		const double[:,::1] Q, double[:,::1] Q_tmp) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int N = G.shape[1]
@@ -134,12 +133,16 @@ cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 		double a, b, g, h
 		double* P_thr
 		double* Q_thr
+		unsigned char D
 	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		Q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
 			for i in range(N):
-				g = <double>G[j,i]
+				D = G[j,i]
+				if D == 9:
+					continue
+				g = <double>D
 				h = computeH(&P[j,0], &Q[i,0], K)
 				a = g/h
 				b = (2.0-g)/(1.0-h)
@@ -154,8 +157,7 @@ cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 
 # Update P in acceleration
 cpdef void accelP(const unsigned char[:,::1] G, const double[:,::1] P, \
-		double[:,::1] P_new, const double[:,::1] Q, double[:,::1] Q_tmp, \
-		const int t) noexcept nogil:
+		double[:,::1] P_new, const double[:,::1] Q, double[:,::1] Q_tmp) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int B = G.shape[1]
@@ -165,12 +167,16 @@ cpdef void accelP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		double a, b, g, h
 		double* P_thr
 		double* Q_thr
+		unsigned char D
 	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		Q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
 			for i in range(N):
-				g = <double>G[j,i]
+				D = G[j,i]
+				if D == 9:
+					continue
+				g = <double>D
 				h = computeH(&P[j,0], &Q[i,0], K)
 				a = g/h
 				b = (2.0-g)/(1.0-h)
@@ -184,8 +190,7 @@ cpdef void accelP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		free(Q_thr)
 
 # Accelerated jump for P (QN)
-cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] P2, \
-		const int t) \
+cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] P2) \
 		noexcept nogil:
 	cdef:
 		int M = P0.shape[0]
@@ -199,25 +204,27 @@ cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] 
 			P0[j,k] = project(c2*P1[j,k] + c1*P2[j,k])
 
 # Update Q from temp arrays
-cpdef void updateQ(double[:,::1] Q, double[:,::1] Q_tmp, const int M) \
+cpdef void updateQ(double[:,::1] Q, double[:,::1] Q_tmp, double[::1] Q_nrm) \
 		noexcept nogil:
 	cdef:
 		int N = Q.shape[0]
 		int K = Q.shape[1]
 		int i, j, k
-		double a = 1.0/<double>(2*M)
+		double a
 	for i in range(N):
+		a = 1.0/(2.0*Q_nrm[i])
 		outerQ(&Q[i,0], &Q_tmp[i,0], a, K)
 
 # Update Q in acceleration
 cpdef void accelQ(const double[:,::1] Q, double[:,::1] Q_new, double[:,::1] Q_tmp, \
-		const int M) noexcept nogil:
+		double[::1] Q_nrm) noexcept nogil:
 	cdef:
 		int N = Q.shape[0]
 		int K = Q.shape[1]
 		int i, k
-		double a = 1.0/<double>(2*M)
+		double a
 	for i in range(N):
+		a = 1.0/(2.0*Q_nrm[i])
 		outerAccelQ(&Q[i,0], &Q_new[i,0], &Q_tmp[i,0], a, K)
 
 # Accelerated jump for Q (QN)
@@ -241,10 +248,10 @@ cpdef void alphaQ(double[:,::1] Q0, const double[:,::1] Q1, const double[:,::1] 
 
 
 ### Batch functions
-# Update P in acceleration
+# Update P in batch acceleration
 cpdef void accelBatchP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		double[:,::1] P_new, const double[:,::1] Q, double[:,::1] Q_tmp, \
-		const long[::1] s, const int t) noexcept nogil:
+		double[::1] Q_bat, const long[::1] s) noexcept nogil:
 	cdef:
 		int M = s.shape[0]
 		int N = G.shape[1]
@@ -253,13 +260,20 @@ cpdef void accelBatchP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		double a, b, g, h
 		double* P_thr
 		double* Q_thr
+		double* Q_len
+		unsigned char D
 	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		Q_thr = <double*>calloc(N*K, sizeof(double))
+		Q_len = <double*>calloc(N, sizeof(double))
 		for j in prange(M):
 			l = s[j]
 			for i in range(N):
-				g = <double>G[l,i]
+				D = G[l,i]
+				if D == 9:
+					continue
+				Q_len[i] += 1.0
+				g = <double>D
 				h = computeH(&P[l,0], &Q[i,0], K)
 				a = g/h
 				b = (2.0-g)/(1.0-h)
@@ -267,14 +281,16 @@ cpdef void accelBatchP(const unsigned char[:,::1] G, const double[:,::1] P, \
 			outerAccelP(&P[l,0], &P_new[l,0], &P_thr[0], &P_thr[K], K)
 		with gil:
 			for x in range(N):
+				Q_bat[x] += Q_len[x]
 				for y in range(K):
 					Q_tmp[x,y] += Q_thr[x*K + y]
 		free(P_thr)
 		free(Q_thr)
+		free(Q_len)
 
-# Accelerated jump for P (QN)
+# Batch accelerated jump for P (QN)
 cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, \
-		const double[:,::1] P2, const long[::1] s, const int t) noexcept nogil:
+		const double[:,::1] P2, const long[::1] s) noexcept nogil:
 	cdef:
 		int M = s.shape[0]
 		int K = P0.shape[1]
@@ -289,10 +305,22 @@ cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, \
 		for k in range(K):
 			P0[l,k] = project(c2*P1[l,k] + c1*P2[l,k])
 
+# Batch update Q from temp arrays
+cpdef void accelBatchQ(const double[:,::1] Q, double[:,::1] Q_new, double[:,::1] Q_tmp, \
+		double[::1] Q_bat) noexcept nogil:
+	cdef:
+		int N = Q.shape[0]
+		int K = Q.shape[1]
+		int i, k
+		double a
+	for i in range(N):
+		a = 1.0/(2.0*Q_bat[i])
+		outerAccelQ(&Q[i,0], &Q_new[i,0], &Q_tmp[i,0], a, K)
+		Q_bat[i] = 0.0
+
 ### Safety steps
 # Update P
-cpdef void stepP(const unsigned char[:,::1] G, double[:,::1] P, \
-		const double[:,::1] Q, const int t) \
+cpdef void stepP(const unsigned char[:,::1] G, double[:,::1] P, const double[:,::1] Q) \
 		noexcept nogil:
 	cdef:
 		int M = G.shape[0]
@@ -301,11 +329,15 @@ cpdef void stepP(const unsigned char[:,::1] G, double[:,::1] P, \
 		int i, j, k
 		double a, b, g, h
 		double* P_thr
+		unsigned char D
 	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		for j in prange(M):
 			for i in range(N):
-				g = <double>G[j,i]
+				D = G[j,i]
+				if D == 9:
+					continue
+				g = <double>D
 				h = computeH(&P[j,0], &Q[i,0], K)
 				a = g/h
 				b = (2.0-g)/(1.0-h)
@@ -318,8 +350,7 @@ cpdef void stepP(const unsigned char[:,::1] G, double[:,::1] P, \
 
 # Update accelerated P
 cpdef void stepAccelP(const unsigned char[:,::1] G, const double[:,::1] P, \
-		double[:,::1] P_new, const double[:,::1] Q, const int t) \
-		noexcept nogil:
+		double[:,::1] P_new, const double[:,::1] Q) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int N = G.shape[1]
@@ -327,11 +358,15 @@ cpdef void stepAccelP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		int i, j, k
 		double a, b, g, h
 		double* P_thr
+		unsigned char D
 	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		for j in prange(M):
 			for i in range(N):
-				g = <double>G[j,i]
+				D = G[j,i]
+				if D == 9:
+					continue
+				g = <double>D
 				h = computeH(&P[j,0], &Q[i,0], K)
 				a = g/h
 				b = (2.0-g)/(1.0-h)
@@ -341,8 +376,7 @@ cpdef void stepAccelP(const unsigned char[:,::1] G, const double[:,::1] P, \
 
 # Update Q temp arrays
 cpdef void stepQ(const unsigned char[:,::1] G, double[:,::1] P, \
-		const double[:,::1] Q, double[:,::1] Q_tmp, const int t) \
-		noexcept nogil:
+		const double[:,::1] Q, double[:,::1] Q_tmp) noexcept nogil:
 	cdef:
 		int M = G.shape[0]
 		int N = G.shape[1]
@@ -350,11 +384,15 @@ cpdef void stepQ(const unsigned char[:,::1] G, double[:,::1] P, \
 		int i, j, k, x, y
 		double a, b, g, h
 		double* Q_thr
+		unsigned char D
 	with nogil, parallel():
 		Q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
 			for i in range(N):
-				g = <double>G[j,i]
+				D = G[j,i]
+				if D == 9:
+					continue
+				g = <double>D
 				h = computeH(&P[j,0], &Q[i,0], K)
 				a = g/h
 				b = (2.0-g)/(1.0-h)

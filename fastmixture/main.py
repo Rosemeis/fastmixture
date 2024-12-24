@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "0.93.5"
+VERSION = "0.94.0"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -121,7 +121,7 @@ def main():
 	assert os.path.isfile(f"{args.bfile}.bim"), "bim file doesn't exist!"
 	assert os.path.isfile(f"{args.bfile}.fam"), "fam file doesn't exist!"
 	print("Reading data...", end="", flush=True)
-	G, M, N = functions.readPlink(args.bfile, args.threads)
+	G, Q_nrm, M, N = functions.readPlink(args.bfile)
 	print(f"\rLoaded {N} samples and {M} SNPs.")
 
 	# Supervised setting
@@ -134,9 +134,8 @@ def main():
 		print(f"{np.sum(y > 0)}/{N} individuals with fixed ancestry.")
 
 		# Count individuals in ancestral sources
-		z, x = np.unique(y[y > 0], return_counts=True)
+		z = np.unique(y[y > 0])
 		z -= 1
-		x = x[np.argsort(z)]
 		z = np.sort(z)
 
 		# Setup containers and initialize
@@ -144,9 +143,9 @@ def main():
 		P = np.random.rand(M, args.K)
 		Q = np.random.rand(N, args.K)
 		P[:,z] = 0.0
-		shared.initP(G, P, y, x, args.threads)
+		shared.initP(G, P, y)
 		shared.initQ(Q, y)
-		del z, x
+		del z
 	else:
 		# Initalize parameters in unsupervised mode
 		y = None
@@ -162,22 +161,22 @@ def main():
 			Q /= np.sum(Q, axis=1, keepdims=True)
 		else: # SVD-based initialization
 			f = np.zeros(M)
-			shared.estimateFreq(G, f, args.threads)
+			shared.estimateFreq(G, f)
 			assert (np.min(f) > 0.0) & (np.max(f) < 1.0), "Please perform MAF filtering!"
 
 			# Initialize P and Q matrices from SVD and ALS
 			ts = time()
 			print("Performing SVD and ALS.", end="", flush=True)
 			U, V = functions.randomizedSVD(G, f, args.K-1, args.chunk, args.power, \
-				args.seed, args.threads)
+				args.seed)
 			P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, \
 				args.als_tole, args.seed)
-			print(f"\rExtracted factor matrices ({round(time()-ts,1)} seconds).")
+			print(f"\rExtracted factor matrices\t({round(time()-ts,1)}s)")
 			del f, U, V
 
 	# Estimate initial log-likelihood
 	ts = time()
-	L_old = shared.loglike(G, P, Q, args.threads)
+	L_old = shared.loglike(G, P, Q)
 	print(f"Initial loglike: {round(L_old,1)}")
 
 	# Mini-batch parameters for stochastic EM
@@ -193,12 +192,13 @@ def main():
 	P_old = np.zeros((M, args.K))
 	Q_old = np.zeros((N, args.K))
 	Q_tmp = np.zeros((N, args.K))
+	Q_bat = np.zeros(N) # Counter for batch normalization
 
 	# Accelerated priming iteration
 	ts = time()
-	functions.steps(G, P, Q, Q_tmp, y, args.threads)
-	functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
-	functions.steps(G, P, Q, Q_tmp, y, args.threads)
+	functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
+	functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
+	functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
 	print(f"Performed priming iteration\t({round(time()-ts,1)}s)\n", flush=True)
 
 	### fastmixture algorithm
@@ -210,24 +210,24 @@ def main():
 		if args.batches > 1: # Quasi-Newton mini-batch updates
 			B_list = np.array_split(np.random.permutation(M), args.batches)
 			for b in B_list:
-				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, b, args.threads)
+				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_bat, y, b)
 
 			# Full updates
 			if args.safety: # Safety updates
-				functions.safetySteps(G, P, Q, Q_tmp, y, args.threads)
-				functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
-				functions.safetySteps(G, P, Q, Q_tmp, y, args.threads)
+				functions.safetySteps(G, P, Q, Q_tmp, Q_nrm, y)
+				functions.safetyQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
+				functions.safetySteps(G, P, Q, Q_tmp, Q_nrm, y)
 			else:
-				functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
+				functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
 		else: # Updates with log-likelihood check
 			if guard:
 				if args.safety:
-					functions.safety(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
-					functions.safetySteps(G, P, Q, Q_tmp, y, args.threads)
+					functions.safetyQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
+					functions.safetySteps(G, P, Q, Q_tmp, Q_nrm, y)
 				else:
-					functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, args.threads)
-					functions.steps(G, P, Q, Q_tmp, y, args.threads)
-				L_cur = shared.loglike(G, P, Q, args.threads)
+					functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
+					functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
+				L_cur = shared.loglike(G, P, Q)
 				if L_cur > L_saf:
 					L_saf = L_cur
 				else: # Remove guard and perform safety updates
@@ -236,8 +236,8 @@ def main():
 					guard = False
 					L_saf = L_old
 			else: # Safety updates
-				L_cur = functions.safetyCheck(G, P, Q, Q_tmp, P1, P2, Q1, Q2, y, \
-					L_saf, args.threads)
+				L_cur = functions.safetyCheck(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, \
+					y, L_saf)
 				if L_cur > L_saf:
 					L_saf = L_cur
 				else: # Break and exit with best estimate
@@ -256,7 +256,7 @@ def main():
 		# Log-likelihood convergence check
 		if (it + 1) % args.check == 0:
 			if args.batches > 1:
-				L_cur = shared.loglike(G, P, Q, args.threads)
+				L_cur = shared.loglike(G, P, Q)
 				print(f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)", \
 		  			flush=True)
 				if (L_cur < L_pre) and (not args.safety): # Check unstable mini-batch
@@ -275,13 +275,13 @@ def main():
 							batch_L = float('-inf')
 							L_pre = L_cur
 							if not args.safety:
-								functions.steps(G, P, Q, Q_tmp, y, args.threads)
+								functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
 						else: # Turn off mini-batch acceleration
 							print("Running standard updates.")
 							L_saf = L_cur
 							del B_list
 							if not args.safety:
-								functions.steps(G, P, Q, Q_tmp, y, args.threads)
+								functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
 					else:
 						batch_L = L_cur
 						if L_cur > L_old:
