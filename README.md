@@ -1,4 +1,4 @@
-# fastmixture (v0.94.0)
+# fastmixture (v0.94.1)
 `fastmixture` is a new software for estimating ancestry proportions in unrelated individuals. It is significantly faster than previous model-based software while providing accurate and robust ancestry estimates.
 
 
@@ -108,7 +108,6 @@ fastmixture --bfile data --K 3 --threads 32 --seed 1 --out super.test --supervis
 * `--als-tole`, specify tolerance for convergence in ALS procedure (1e-4)
 * `--no-freqs`, do not save ancestral allele frequencies (P-matrix)
 * `--random-init`, random parameter initialization instead of SVD
-* `--safety`, only perform safety updates
 
 ## License
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](./LICENSE) file for details

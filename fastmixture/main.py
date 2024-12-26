@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "0.94.0"
+VERSION = "0.94.1"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -50,8 +50,6 @@ parser.add_argument("--no-freqs", action="store_true",
 	help="Do not save P-matrix")
 parser.add_argument("--random-init", action="store_true",
 	help="Random initialization of parameters")
-parser.add_argument("--safety", action="store_true",
-	help="Add extra safety steps in unstable optimizations")
 
 
 
@@ -82,7 +80,7 @@ def main():
 	assert args.als_tole >= 0.0, "Please select a valid tolerance in ALS!"
 	start = time()
 
-	# Create log-file of arguments
+	# Create log-file of used arguments
 	full = vars(parser.parse_args())
 	deaf = vars(parser.parse_args([]))
 	mand = ["seed", "batches"]
@@ -113,6 +111,7 @@ def main():
 
 	# Load numerical libraries
 	import numpy as np
+	from math import ceil
 	from fastmixture import functions
 	from fastmixture import shared
 
@@ -122,6 +121,7 @@ def main():
 	assert os.path.isfile(f"{args.bfile}.fam"), "fam file doesn't exist!"
 	print("Reading data...", end="", flush=True)
 	G, Q_nrm, M, N = functions.readPlink(args.bfile)
+	rng = np.random.default_rng(args.seed) # Set up random number generator
 	print(f"\rLoaded {N} samples and {M} SNPs.")
 
 	# Supervised setting
@@ -133,15 +133,14 @@ def main():
 		assert np.min(y) >= 0, "Wrong format in population assignments!"
 		print(f"{np.sum(y > 0)}/{N} individuals with fixed ancestry.")
 
-		# Count individuals in ancestral sources
+		# Count ancestral sources
 		z = np.unique(y[y > 0])
 		z -= 1
 		z = np.sort(z)
 
-		# Setup containers and initialize
-		np.random.seed(args.seed) # Set random seed
-		P = np.random.rand(M, args.K)
-		Q = np.random.rand(N, args.K)
+		# Set up containers and initialize
+		P = rng.random(M, args.K)
+		Q = rng.random(N, args.K)
 		P[:,z] = 0.0
 		shared.initP(G, P, y)
 		shared.initQ(Q, y)
@@ -153,11 +152,8 @@ def main():
 		# Random initialization
 		if args.random_init:
 			print("Random initialization.")
-			np.random.seed(args.seed) # Set random seed
-			P = np.random.rand(M, args.K)
-			P.clip(min=1e-5, max=1-(1e-5), out=P)
-			Q = np.random.rand(N, args.K)
-			Q.clip(min=1e-5, max=1-(1e-5), out=Q)
+			P = rng.random(M, args.K).clip(min=1e-5, max=1-(1e-5))
+			Q = rng.random(N, args.K).clip(min=1e-5, max=1-(1e-5))
 			Q /= np.sum(Q, axis=1, keepdims=True)
 		else: # SVD-based initialization
 			f = np.zeros(M)
@@ -167,24 +163,26 @@ def main():
 			# Initialize P and Q matrices from SVD and ALS
 			ts = time()
 			print("Performing SVD and ALS.", end="", flush=True)
-			U, V = functions.randomizedSVD(G, f, args.K-1, args.chunk, args.power, \
-				args.seed)
+			U, V = functions.randomizedSVD(G, f, args.K-1, args.chunk, args.power, rng)
 			P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, \
-				args.als_tole, args.seed)
-			print(f"\rExtracted factor matrices\t({round(time()-ts,1)}s)")
+				args.als_tole, rng)
+			print(f"\rExtracted factor matrices\t({time()-ts:.1f}s)")
 			del f, U, V
 
 	# Estimate initial log-likelihood
 	ts = time()
 	L_old = shared.loglike(G, P, Q)
-	print(f"Initial loglike: {round(L_old,1)}")
+	print(f"Initial loglike: {L_old:.1f}")
 
 	# Mini-batch parameters for stochastic EM
 	guard = True
+	safety = False
 	batch_L = L_pre = L_old
+	batch_M = ceil(M/args.batches)
 
 	# Setup containers for EM algorithm
 	converged = False
+	s = rng.permuted(np.arange(M, dtype=np.int32))
 	P1 = np.zeros((M, args.K))
 	P2 = np.zeros((M, args.K))
 	Q1 = np.zeros((N, args.K))
@@ -192,28 +190,31 @@ def main():
 	P_old = np.zeros((M, args.K))
 	Q_old = np.zeros((N, args.K))
 	Q_tmp = np.zeros((N, args.K))
-	Q_bat = np.zeros(N) # Counter for batch normalization
+	Q_bat = np.zeros(N)
 
 	# Accelerated priming iteration
 	ts = time()
 	functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
 	functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
 	functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
-	print(f"Performed priming iteration\t({round(time()-ts,1)}s)\n", flush=True)
+	print(f"Performed priming iteration\t({time()-ts:.1f}s)\n", flush=True)
 
 	### fastmixture algorithm
 	ts = time()
 	print("Estimating Q and P using mini-batch EM.")
 	print(f"Using {args.batches} mini-batches.")
-	np.random.seed(args.seed) # Set random seed
 	for it in np.arange(args.iter):
 		if args.batches > 1: # Quasi-Newton mini-batch updates
-			B_list = np.array_split(np.random.permutation(M), args.batches)
-			for b in B_list:
-				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_bat, y, b)
+			rng.shuffle(s)
+			for b in np.arange(args.batches):
+				if b == (args.batches-1):
+					s_bat = s[(b*batch_M):M]
+				else:
+					s_bat = s[(b*batch_M):((b+1)*batch_M)]
+				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_bat, y, s_bat)
 
 			# Full updates
-			if args.safety: # Safety updates
+			if safety: # Safety updates
 				functions.safetySteps(G, P, Q, Q_tmp, Q_nrm, y)
 				functions.safetyQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
 				functions.safetySteps(G, P, Q, Q_tmp, Q_nrm, y)
@@ -221,7 +222,7 @@ def main():
 				functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
 		else: # Updates with log-likelihood check
 			if guard:
-				if args.safety:
+				if safety:
 					functions.safetyQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
 					functions.safetySteps(G, P, Q, Q_tmp, Q_nrm, y)
 				else:
@@ -246,7 +247,7 @@ def main():
 					converged = True
 					L_cur = L_old
 					print("No improvement. Returning with best estimate!")
-					print(f"Final log-likelihood: {round(L_cur,1)}")
+					print(f"Final log-likelihood: {L_cur:.1f}")
 					break
 			if L_cur > L_old: # Update best guess
 				memoryview(P_old.ravel())[:] = memoryview(P.ravel())
@@ -257,15 +258,14 @@ def main():
 		if (it + 1) % args.check == 0:
 			if args.batches > 1:
 				L_cur = shared.loglike(G, P, Q)
-				print(f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)", \
-		  			flush=True)
-				if (L_cur < L_pre) and (not args.safety): # Check unstable mini-batch
+				print(f"({it+1})\tLog-like: {L_cur:.1f}\t({time()-ts:.1f}s)", flush=True)
+				if (L_cur < L_pre) and (not safety): # Check unstable mini-batch
 					print("Turning on safety updates.")
 					memoryview(P.ravel())[:] = memoryview(P_old.ravel())
 					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 					batch_L = float('-inf')
 					L_cur = L_old
-					args.safety = True
+					safety = True
 				else:
 					if (L_cur < batch_L) or (abs(L_cur - batch_L) < args.tole):				
 						# Halve number of batches
@@ -273,14 +273,14 @@ def main():
 						if args.batches > 1:
 							print(f"Halving mini-batches to {args.batches}.")
 							batch_L = float('-inf')
+							batch_M = ceil(M/args.batches)
 							L_pre = L_cur
-							if not args.safety:
+							if not safety:
 								functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
 						else: # Turn off mini-batch acceleration
 							print("Running standard updates.")
 							L_saf = L_cur
-							del B_list
-							if not args.safety:
+							if not safety:
 								functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
 					else:
 						batch_L = L_cur
@@ -289,8 +289,7 @@ def main():
 							memoryview(Q_old.ravel())[:] = memoryview(Q.ravel())
 							L_old = L_cur
 			else:
-				print(f"({it+1})\tLog-like: {round(L_cur,1)}\t({round(time()-ts,1)}s)", \
-		  			flush=True)
+				print(f"({it+1})\tLog-like: {L_cur:.1f}\t({time()-ts:.1f}s)", flush=True)
 				if (abs(L_cur - L_pre) < args.tole):
 					if L_cur < L_old:
 						memoryview(P.ravel())[:] = memoryview(P_old.ravel())
@@ -298,7 +297,7 @@ def main():
 						L_cur = L_old
 					converged = True
 					print("Converged!")
-					print(f"Final log-likelihood: {round(L_cur,1)}")
+					print(f"Final log-likelihood: {L_cur:.1f}")
 					break
 				L_pre = L_cur
 			ts = time()
@@ -318,7 +317,7 @@ def main():
 	
 	# Write to log-file
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "a") as log:
-		log.write(f"\nFinal log-likelihood: {round(L_cur,1)}\n")
+		log.write(f"\nFinal log-likelihood: {L_cur:.1f}\n")
 		if converged:
 			log.write(f"Converged in {it+1} iterations.\n")
 		else:

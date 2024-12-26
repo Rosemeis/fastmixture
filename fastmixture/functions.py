@@ -29,12 +29,11 @@ def readPlink(bfile):
 	return G, Q_nrm, M, N
 
 ### Randomized SVD (PCAone Halko)
-def randomizedSVD(G, f, K, chunk, power, seed):
+def randomizedSVD(G, f, K, chunk, power, rng):
 	M = G.shape[0]
 	N = G.shape[1]
 	W = ceil(M/chunk)
 	L = K + 20
-	rng = np.random.default_rng(seed)
 	O = rng.standard_normal(size=(N, L))
 	A = np.zeros((M, L))
 	H = np.zeros((N, L))
@@ -63,8 +62,7 @@ def randomizedSVD(G, f, K, chunk, power, seed):
 	return U, V
 
 ### Alternating least square (ALS) for initializing Q and F
-def extractFactor(U, V, f, K, iterations, tole, seed):
-	rng = np.random.default_rng(seed)
+def extractFactor(U, V, f, K, iterations, tole, rng):
 	M = U.shape[0]
 	P = rng.random(size=(M, K)).clip(min=1e-5, max=1-(1e-5))
 	I = np.dot(P, np.linalg.pinv(np.dot(P.T, P)))

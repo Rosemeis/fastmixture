@@ -104,7 +104,7 @@ cdef inline double computeC(const double* x0, const double* x1, const double* x2
 	return min(max(-(sum1/sum2), 1.0), 256.0)
 
 cdef inline double computeBatchC(const double* p0, const double* p1, const double* p2, \
-		const long* s, const int I, const int J) noexcept nogil:
+		const int* s, const int I, const int J) noexcept nogil:
 	cdef:
 		int i, j, k, l
 		double sum1 = 0.0
@@ -251,7 +251,7 @@ cpdef void alphaQ(double[:,::1] Q0, const double[:,::1] Q1, const double[:,::1] 
 # Update P in batch acceleration
 cpdef void accelBatchP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		double[:,::1] P_new, const double[:,::1] Q, double[:,::1] Q_tmp, \
-		double[::1] Q_bat, const long[::1] s) noexcept nogil:
+		double[::1] Q_bat, const int[::1] s) noexcept nogil:
 	cdef:
 		int M = s.shape[0]
 		int N = G.shape[1]
@@ -290,7 +290,7 @@ cpdef void accelBatchP(const unsigned char[:,::1] G, const double[:,::1] P, \
 
 # Batch accelerated jump for P (QN)
 cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, \
-		const double[:,::1] P2, const long[::1] s) noexcept nogil:
+		const double[:,::1] P2, const int[::1] s) noexcept nogil:
 	cdef:
 		int M = s.shape[0]
 		int K = P0.shape[1]
