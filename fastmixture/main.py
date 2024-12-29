@@ -321,7 +321,7 @@ def main():
 		if converged:
 			log.write(f"Converged in {it+1} iterations.\n")
 		else:
-			log.write("EM algorithm did not converge in {args.iter} iterations!\n")
+			log.write(f"EM algorithm did not converge in {args.iter} iterations!\n")
 		log.write(f"Total elapsed time: {t_min}m{t_sec}s\n")
 		log.write(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q\n")
 		if not args.no_freqs:
