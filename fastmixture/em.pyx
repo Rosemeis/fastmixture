@@ -96,7 +96,7 @@ cdef inline double computeC(const double* x0, const double* x1, const double* x2
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double u, v
-	for i in range(I):
+	for i in prange(I):
 		u = x1[i]-x0[i]
 		v = x2[i]-x1[i]-u
 		sum1 += u*u
@@ -110,7 +110,7 @@ cdef inline double computeBatchC(const double* p0, const double* p1, const doubl
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double u, v
-	for i in range(I):
+	for i in prange(I):
 		l = s[i]
 		for j in range(J):
 			k = l*J + j
