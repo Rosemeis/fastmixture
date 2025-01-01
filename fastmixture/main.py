@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "0.94.1"
+VERSION = "0.94.2"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -121,6 +121,7 @@ def main():
 	assert os.path.isfile(f"{args.bfile}.fam"), "fam file doesn't exist!"
 	print("Reading data...", end="", flush=True)
 	G, Q_nrm, M, N = functions.readPlink(args.bfile)
+	assert not np.any(Q_nrm == 0), "Sample(s) with zero information!"
 	rng = np.random.default_rng(args.seed) # Set up random number generator
 	print(f"\rLoaded {N} samples and {M} SNPs.")
 
@@ -139,8 +140,8 @@ def main():
 		z = np.sort(z)
 
 		# Set up containers and initialize
-		P = rng.random(M, args.K)
-		Q = rng.random(N, args.K)
+		P = rng.random(size=(M, args.K))
+		Q = rng.random(size=(N, args.K))
 		P[:,z] = 0.0
 		shared.initP(G, P, y)
 		shared.initQ(Q, y)
@@ -152,8 +153,8 @@ def main():
 		# Random initialization
 		if args.random_init:
 			print("Random initialization.")
-			P = rng.random(M, args.K).clip(min=1e-5, max=1-(1e-5))
-			Q = rng.random(N, args.K).clip(min=1e-5, max=1-(1e-5))
+			P = rng.random(size=(M, args.K)).clip(min=1e-5, max=1-(1e-5))
+			Q = rng.random(size=(N, args.K)).clip(min=1e-5, max=1-(1e-5))
 			Q /= np.sum(Q, axis=1, keepdims=True)
 		else: # SVD-based initialization
 			f = np.zeros(M)
