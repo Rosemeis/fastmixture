@@ -10,10 +10,10 @@ from libc.stdlib cimport calloc, free
 cdef inline double project(double s) noexcept nogil:
 	return min(max(s, 1e-5), 1-(1e-5))
 
-cdef inline double computeH(const double* p, const double* q, const int K) \
+cdef inline double computeH(const double* p, const double* q, const size_t K) \
 		noexcept nogil:
 	cdef:
-		int k
+		size_t k
 		double h = 0.0
 	for k in range(K):
 		h += p[k]*q[k]
@@ -23,10 +23,10 @@ cdef inline double computeH(const double* p, const double* q, const int K) \
 cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 		double[::1] Q_nrm) noexcept nogil:
 	cdef:
-		int M = G.shape[0]
-		int N = G.shape[1]
-		int N_b = B.shape[1]
-		int i, j, b, x, bytepart
+		size_t M = G.shape[0]
+		size_t N = G.shape[1]
+		size_t N_b = B.shape[1]
+		size_t i, j, b, x, bytepart
 		double* Q_len
 		unsigned char[4] recode = [2, 9, 1, 0]
 		unsigned char mask = 3
@@ -54,10 +54,10 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 cpdef void initP(const unsigned char[:,::1] G, double[:,::1] P, \
 		const unsigned char[::1] y) noexcept nogil:
 	cdef:
-		int M = G.shape[0]
-		int N = G.shape[1]
-		int K = P.shape[1]
-		int i, j, k
+		size_t M = G.shape[0]
+		size_t N = G.shape[1]
+		size_t K = P.shape[1]
+		size_t i, j, k
 		double* x
 		unsigned char D
 	for j in prange(M):
@@ -79,9 +79,9 @@ cpdef void initP(const unsigned char[:,::1] G, double[:,::1] P, \
 # Initialize Q in supervised mode
 cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 	cdef:
-		int N = Q.shape[0]
-		int K = Q.shape[1]
-		int i, k
+		size_t N = Q.shape[0]
+		size_t K = Q.shape[1]
+		size_t i, k
 		double sumQ
 	for i in range(N):
 		if y[i] > 0:
@@ -101,9 +101,9 @@ cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 # Update Q in supervised mode
 cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 	cdef:
-		int N = Q.shape[0]
-		int K = Q.shape[1]
-		int i, k
+		size_t N = Q.shape[0]
+		size_t K = Q.shape[1]
+		size_t i, k
 		double sumQ
 	for i in range(N):
 		if y[i] > 0:
@@ -121,9 +121,9 @@ cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 # Estimate minor allele frequencies
 cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f) noexcept nogil:
 	cdef:
-		int M = G.shape[0]
-		int N = G.shape[1]
-		int i, j
+		size_t M = G.shape[0]
+		size_t N = G.shape[1]
+		size_t i, j
 		double n
 		unsigned char D
 	for j in prange(M):
@@ -140,10 +140,10 @@ cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f) noexcept no
 cpdef double loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
 		const double[:,::1] Q) noexcept nogil:
 	cdef:
-		int M = G.shape[0]
-		int N = G.shape[1]
-		int K = Q.shape[1]
-		int i, j, k
+		size_t M = G.shape[0]
+		size_t N = G.shape[1]
+		size_t K = Q.shape[1]
+		size_t i, j, k
 		double res = 0.0
 		double g, h
 		unsigned char D
@@ -160,9 +160,9 @@ cpdef double loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
 # Root-mean-square error
 cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nogil:
 	cdef:
-		int N = Q.shape[0]
-		int K = Q.shape[1]
-		int i, k
+		size_t N = Q.shape[0]
+		size_t K = Q.shape[1]
+		size_t i, k
 		double r = 0.0
 	for i in range(N):
 		for k in range(K):
@@ -173,10 +173,10 @@ cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nog
 cpdef double sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
 		const double[:,::1] Q) noexcept nogil:
 	cdef:
-		int M = G.shape[0]
-		int N = G.shape[1]
-		int K = Q.shape[1]
-		int i, j, k
+		size_t M = G.shape[0]
+		size_t N = G.shape[1]
+		size_t K = Q.shape[1]
+		size_t i, j, k
 		double res = 0.0
 		double h, g
 		unsigned char D
@@ -193,9 +193,9 @@ cpdef double sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
 # Kullback-Leibler divergence with average for Jensen-Shannon
 cpdef double divKL(const double[:,::1] A, const double[:,::1] B) noexcept nogil:
 	cdef:
-		int N = A.shape[0]
-		int K = A.shape[1]
-		int i, k
+		size_t N = A.shape[0]
+		size_t K = A.shape[1]
+		size_t i, k
 		double d = 0.0
 		double a
 	for i in range(N):

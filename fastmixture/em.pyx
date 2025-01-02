@@ -9,44 +9,44 @@ from libc.stdlib cimport calloc, free
 cdef inline double project(const double s) noexcept nogil:
 	return min(max(s, 1e-5), 1-(1e-5))
 
-cdef inline double computeH(const double* p, const double* q, const int K) \
+cdef inline double computeH(const double* p, const double* q, const size_t K) \
 		noexcept nogil:
 	cdef:
-		int k
+		size_t k
 		double h = 0.0
 	for k in range(K):
 		h += p[k]*q[k]
 	return h
 
 cdef inline void innerJ(const double* p, const double* q, double* p_a, \
-		double* p_b, double* q_thr, const double a, const double b, const int K) \
+		double* p_b, double* q_thr, const double a, const double b, const size_t K) \
 		noexcept nogil:
 	cdef:
-		int k
+		size_t k
 	for k in range(K):
 		p_a[k] += q[k]*a
 		p_b[k] += q[k]*b
 		q_thr[k] += p[k]*a + (1.0 - p[k])*b
 
 cdef inline void innerP(const double* q, double* p_a, double* p_b, \
-		const double a, const double b, const int K) noexcept nogil:
+		const double a, const double b, const size_t K) noexcept nogil:
 	cdef:
-		int k
+		size_t k
 	for k in range(K):
 		p_a[k] += q[k]*a
 		p_b[k] += q[k]*b
 
 cdef inline void innerQ(const double* p, double* q_thr, \
-		const double a, const double b, const int K) noexcept nogil:
+		const double a, const double b, const size_t K) noexcept nogil:
 	cdef:
-		int k
+		size_t k
 	for k in range(K):
 		q_thr[k] += p[k]*a + (1.0 - p[k])*b
 
-cdef inline void outerP(double* p, double* p_a, double* p_b, const int K) \
+cdef inline void outerP(double* p, double* p_a, double* p_b, const size_t K) \
 		noexcept nogil:
 	cdef:
-		int k
+		size_t k
 	for k in range(K):
 		p_a[k] *= p[k]
 		p[k] = project(p_a[k]/(p_a[k] + p_b[k]*(1.0 - p[k])))
@@ -54,19 +54,19 @@ cdef inline void outerP(double* p, double* p_a, double* p_b, const int K) \
 		p_b[k] = 0.0
 
 cdef inline void outerAccelP(const double* p, double* p_new, double* p_a, \
-		double* p_b, const int K) noexcept nogil:
+		double* p_b, const size_t K) noexcept nogil:
 	cdef:
-		int k
+		size_t k
 	for k in range(K):
 		p_a[k] *= p[k]
 		p_new[k] = project(p_a[k]/(p_a[k] + p_b[k]*(1.0 - p[k])))
 		p_a[k] = 0.0
 		p_b[k] = 0.0
 
-cdef inline void outerQ(double* q, double* q_tmp, const double a, const int K) \
+cdef inline void outerQ(double* q, double* q_tmp, const double a, const size_t K) \
 		noexcept nogil:
 	cdef:
-		int k
+		size_t k
 		double sumQ = 0.0
 	for k in range(K):
 		q[k] = project(q[k]*q_tmp[k]*a)
@@ -77,9 +77,9 @@ cdef inline void outerQ(double* q, double* q_tmp, const double a, const int K) \
 		q[k] *= sumQ
 
 cdef inline void outerAccelQ(const double* q, double* q_new, double* q_tmp, \
-		const double a, const int K) noexcept nogil:
+		const double a, const size_t K) noexcept nogil:
 	cdef:
-		int k
+		size_t k
 		double sumQ = 0.0
 	for k in range(K):
 		q_new[k] = project(q[k]*q_tmp[k]*a)
@@ -90,9 +90,9 @@ cdef inline void outerAccelQ(const double* q, double* q_new, double* q_tmp, \
 		q_new[k] *= sumQ
 
 cdef inline double computeC(const double* x0, const double* x1, const double* x2, \
-		const int I) noexcept nogil:
+		const size_t I) noexcept nogil:
 	cdef:
-		int i
+		size_t i
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double u, v
@@ -104,9 +104,9 @@ cdef inline double computeC(const double* x0, const double* x1, const double* x2
 	return min(max(-(sum1/sum2), 1.0), 256.0)
 
 cdef inline double computeBatchC(const double* p0, const double* p1, const double* p2, \
-		const int* s, const int I, const int J) noexcept nogil:
+		const unsigned int* s, const size_t I, const size_t J) noexcept nogil:
 	cdef:
-		int i, j, k, l
+		size_t i, j, k, l
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double u, v
@@ -126,10 +126,10 @@ cdef inline double computeBatchC(const double* p0, const double* p1, const doubl
 cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 		const double[:,::1] Q, double[:,::1] Q_tmp) noexcept nogil:
 	cdef:
-		int M = G.shape[0]
-		int N = G.shape[1]
-		int K = Q.shape[1]
-		int i, j, k, x, y
+		size_t M = G.shape[0]
+		size_t N = G.shape[1]
+		size_t K = Q.shape[1]
+		size_t i, j, k, x, y
 		double a, b, g, h
 		double* P_thr
 		double* Q_thr
@@ -159,11 +159,11 @@ cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 cpdef void accelP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		double[:,::1] P_new, const double[:,::1] Q, double[:,::1] Q_tmp) noexcept nogil:
 	cdef:
-		int M = G.shape[0]
-		int B = G.shape[1]
-		int N = Q.shape[0]
-		int K = P.shape[1]
-		int i, j, k, x, y
+		size_t M = G.shape[0]
+		size_t B = G.shape[1]
+		size_t N = Q.shape[0]
+		size_t K = P.shape[1]
+		size_t i, j, k, x, y
 		double a, b, g, h
 		double* P_thr
 		double* Q_thr
@@ -193,9 +193,9 @@ cpdef void accelP(const unsigned char[:,::1] G, const double[:,::1] P, \
 cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] P2) \
 		noexcept nogil:
 	cdef:
-		int M = P0.shape[0]
-		int K = P0.shape[1]
-		int j, k
+		size_t M = P0.shape[0]
+		size_t K = P0.shape[1]
+		size_t j, k
 		double c1, c2
 	c1 = computeC(&P0[0,0], &P1[0,0], &P2[0,0], M*K)
 	c2 = 1.0 - c1
@@ -207,9 +207,9 @@ cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] 
 cpdef void updateQ(double[:,::1] Q, double[:,::1] Q_tmp, double[::1] Q_nrm) \
 		noexcept nogil:
 	cdef:
-		int N = Q.shape[0]
-		int K = Q.shape[1]
-		int i, j, k
+		size_t N = Q.shape[0]
+		size_t K = Q.shape[1]
+		size_t i, j, k
 		double a
 	for i in range(N):
 		a = 1.0/(2.0*Q_nrm[i])
@@ -219,9 +219,9 @@ cpdef void updateQ(double[:,::1] Q, double[:,::1] Q_tmp, double[::1] Q_nrm) \
 cpdef void accelQ(const double[:,::1] Q, double[:,::1] Q_new, double[:,::1] Q_tmp, \
 		double[::1] Q_nrm) noexcept nogil:
 	cdef:
-		int N = Q.shape[0]
-		int K = Q.shape[1]
-		int i, k
+		size_t N = Q.shape[0]
+		size_t K = Q.shape[1]
+		size_t i, k
 		double a
 	for i in range(N):
 		a = 1.0/(2.0*Q_nrm[i])
@@ -231,9 +231,9 @@ cpdef void accelQ(const double[:,::1] Q, double[:,::1] Q_new, double[:,::1] Q_tm
 cpdef void alphaQ(double[:,::1] Q0, const double[:,::1] Q1, const double[:,::1] Q2) \
 		noexcept nogil:
 	cdef:
-		int N = Q0.shape[0]
-		int K = Q0.shape[1]
-		int i, k
+		size_t N = Q0.shape[0]
+		size_t K = Q0.shape[1]
+		size_t i, k
 		double c1, c2, sumQ
 	c1 = computeC(&Q0[0,0], &Q1[0,0], &Q2[0,0], N*K)
 	c2 = 1.0 - c1
@@ -251,12 +251,12 @@ cpdef void alphaQ(double[:,::1] Q0, const double[:,::1] Q1, const double[:,::1] 
 # Update P in batch acceleration
 cpdef void accelBatchP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		double[:,::1] P_new, const double[:,::1] Q, double[:,::1] Q_tmp, \
-		double[::1] Q_bat, const int[::1] s) noexcept nogil:
+		double[::1] Q_bat, const unsigned int[::1] s) noexcept nogil:
 	cdef:
-		int M = s.shape[0]
-		int N = G.shape[1]
-		int K = Q.shape[1]
-		int i, j, k, l, x, y
+		size_t M = s.shape[0]
+		size_t N = G.shape[1]
+		size_t K = Q.shape[1]
+		size_t i, j, k, l, x, y
 		double a, b, g, h
 		double* P_thr
 		double* Q_thr
@@ -290,11 +290,11 @@ cpdef void accelBatchP(const unsigned char[:,::1] G, const double[:,::1] P, \
 
 # Batch accelerated jump for P (QN)
 cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, \
-		const double[:,::1] P2, const int[::1] s) noexcept nogil:
+		const double[:,::1] P2, const unsigned int[::1] s) noexcept nogil:
 	cdef:
-		int M = s.shape[0]
-		int K = P0.shape[1]
-		int j, k, l
+		size_t M = s.shape[0]
+		size_t K = P0.shape[1]
+		size_t j, k, l
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double c1, c2
@@ -309,9 +309,9 @@ cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, \
 cpdef void accelBatchQ(const double[:,::1] Q, double[:,::1] Q_new, double[:,::1] Q_tmp, \
 		double[::1] Q_bat) noexcept nogil:
 	cdef:
-		int N = Q.shape[0]
-		int K = Q.shape[1]
-		int i, k
+		size_t N = Q.shape[0]
+		size_t K = Q.shape[1]
+		size_t i, k
 		double a
 	for i in range(N):
 		a = 1.0/(2.0*Q_bat[i])
@@ -323,10 +323,10 @@ cpdef void accelBatchQ(const double[:,::1] Q, double[:,::1] Q_new, double[:,::1]
 cpdef void stepP(const unsigned char[:,::1] G, double[:,::1] P, const double[:,::1] Q) \
 		noexcept nogil:
 	cdef:
-		int M = G.shape[0]
-		int N = G.shape[1]
-		int K = Q.shape[1]
-		int i, j, k
+		size_t M = G.shape[0]
+		size_t N = G.shape[1]
+		size_t K = Q.shape[1]
+		size_t i, j, k
 		double a, b, g, h
 		double* P_thr
 		unsigned char D
@@ -352,10 +352,10 @@ cpdef void stepP(const unsigned char[:,::1] G, double[:,::1] P, const double[:,:
 cpdef void stepAccelP(const unsigned char[:,::1] G, const double[:,::1] P, \
 		double[:,::1] P_new, const double[:,::1] Q) noexcept nogil:
 	cdef:
-		int M = G.shape[0]
-		int N = G.shape[1]
-		int K = Q.shape[1]
-		int i, j, k
+		size_t M = G.shape[0]
+		size_t N = G.shape[1]
+		size_t K = Q.shape[1]
+		size_t i, j, k
 		double a, b, g, h
 		double* P_thr
 		unsigned char D
@@ -378,10 +378,10 @@ cpdef void stepAccelP(const unsigned char[:,::1] G, const double[:,::1] P, \
 cpdef void stepQ(const unsigned char[:,::1] G, double[:,::1] P, \
 		const double[:,::1] Q, double[:,::1] Q_tmp) noexcept nogil:
 	cdef:
-		int M = G.shape[0]
-		int N = G.shape[1]
-		int K = Q.shape[1]
-		int i, j, k, x, y
+		size_t M = G.shape[0]
+		size_t N = G.shape[1]
+		size_t K = Q.shape[1]
+		size_t i, j, k, x, y
 		double a, b, g, h
 		double* Q_thr
 		unsigned char D

@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "0.94.2"
+VERSION = "0.94.3"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -183,7 +183,7 @@ def main():
 
 	# Setup containers for EM algorithm
 	converged = False
-	s = rng.permuted(np.arange(M, dtype=np.int32))
+	s = np.arange(M, dtype=np.uint32)
 	P1 = np.zeros((M, args.K))
 	P2 = np.zeros((M, args.K))
 	Q1 = np.zeros((N, args.K))
