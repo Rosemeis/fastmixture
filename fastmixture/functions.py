@@ -33,10 +33,10 @@ def randomizedSVD(G, f, K, chunk, power, rng):
 	M = G.shape[0]
 	N = G.shape[1]
 	W = ceil(M/chunk)
-	L = K + 20
-	O = rng.standard_normal(size=(N, L))
+	L = K + 10
 	A = np.zeros((M, L))
 	H = np.zeros((N, L))
+	O = rng.standard_normal(size=(N, L))
 	for p in range(power):
 		X = np.zeros((chunk, N))
 		if p > 0:

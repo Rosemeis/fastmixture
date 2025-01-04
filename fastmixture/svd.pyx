@@ -15,15 +15,16 @@ cpdef void plinkChunk(const unsigned char[:,::1] G, double[:,::1] X, \
 	cdef:
 		size_t M = X.shape[0]
 		size_t N = X.shape[1]
-		size_t i, j
+		size_t i, j, l
 		unsigned char D
 	for j in prange(M):
+		l = M_b+j
 		for i in range(N):
-			D = G[M_b+j,i]
+			D = G[l,i]
 			if D == 9:
 				X[j,i] = 0.0
 			else:
-				X[j,i] = <double>D - 2.0*f[M_b+j]
+				X[j,i] = <double>D - 2.0*f[l]
 
 # Root-mean square error between two Q matrices
 cpdef double rmse(const double[:,::1] A, const double[:,::1] B) noexcept nogil:
