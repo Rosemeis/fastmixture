@@ -28,37 +28,53 @@ def readPlink(bfile):
 	del B
 	return G, Q_nrm, M, N
 
-### Randomized SVD (PCAone Halko)
+### Randomized SVD with dynamic shifts
 def randomizedSVD(G, f, K, chunk, power, rng):
-	M = G.shape[0]
-	N = G.shape[1]
+	M, N = G.shape
 	W = ceil(M/chunk)
+	a = 0.0
 	L = K + 10
 	A = np.zeros((M, L))
 	H = np.zeros((N, L))
-	O = rng.standard_normal(size=(N, L))
-	for p in range(power):
+	X = np.zeros((chunk, N))
+	O = rng.standard_normal(size=(M, L))
+
+	# Prime iteration
+	for w in np.arange(W):
+		M_w = w*chunk
+		if w == (W-1): # Last chunk
+			X = np.zeros((M - M_w, N))
+		svd.plinkChunk(G, X, f, M_w)
+		H += np.dot(X.T, O[M_w:(M_w + X.shape[0])])
+	Q, _ = np.linalg.qr(H)
+	H.fill(0.0)
+
+	# Power iterations
+	for _ in np.arange(power):
 		X = np.zeros((chunk, N))
-		if p > 0:
-			O, _ = np.linalg.qr(H, mode="reduced")
-			H.fill(0.0)
-		for w in range(W):
+		for w in np.arange(W):
 			M_w = w*chunk
 			if w == (W-1): # Last chunk
-				del X # Ensure no extra copy
 				X = np.zeros((M - M_w, N))
 			svd.plinkChunk(G, X, f, M_w)
-			A[M_w:(M_w + X.shape[0])] = np.dot(X, O)
+			A[M_w:(M_w + X.shape[0])] = np.dot(X, Q)
 			H += np.dot(X.T, A[M_w:(M_w + X.shape[0])])
-	Q, R1 = np.linalg.qr(A, mode="reduced")
-	Q, R2 = np.linalg.qr(Q, mode="reduced")
-	R = np.dot(R1, R2)
-	B = np.linalg.solve(R.T, H.T)
-	Uhat, S, V = np.linalg.svd(B, full_matrices=False)
-	U = np.dot(Q, Uhat)
-	del A, B, H, O, Q, R, R1, R2, Uhat, X
+		Q, S, _ = np.linalg.svd(H - a*Q, full_matrices=False)
+		H.fill(0.0)
+		if S[-1] > a:
+			a = 0.5*(S[-1] + a)
+
+	# Extract singular vectors
+	X = np.zeros((chunk, N))
+	for w in np.arange(W):
+		M_w = w*chunk
+		if w == (W-1): # Last chunk
+			X = np.zeros((M - M_w, N))
+		svd.plinkChunk(G, X, f, M_w)
+		A[M_w:(M_w + X.shape[0])] = np.dot(X, Q)
+	U, S, V = np.linalg.svd(A, full_matrices=False)
 	U = np.ascontiguousarray(U[:,:K]*S[:K])
-	V = np.ascontiguousarray(V[:K,:].T)
+	V = np.ascontiguousarray(np.dot(Q, V)[:,:K])
 	return U, V
 
 ### Alternating least square (ALS) for initializing Q and F

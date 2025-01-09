@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "0.94.4"
+VERSION = "0.94.5"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -38,8 +38,8 @@ parser.add_argument("--supervised", metavar="FILE",
 	help="Path to population assignment file")
 parser.add_argument("--check", metavar="INT", type=int, default=5,
 	help="Number of iterations between check for convergence")
-parser.add_argument("--power", metavar="INT", type=int, default=11,
-	help="Number of power iterations in randomized SVD (11)")
+parser.add_argument("--power", metavar="INT", type=int, default=10,
+	help="Number of power iterations in randomized SVD (10)")
 parser.add_argument("--chunk", metavar="INT", type=int, default=8192,
 	help="Number of SNPs in chunk operations (8192)")
 parser.add_argument("--als-iter", metavar="INT", type=int, default=1000,
