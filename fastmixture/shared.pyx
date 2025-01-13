@@ -19,7 +19,7 @@ cdef inline double computeH(const double* p, const double* q, const size_t K) \
 		h += p[k]*q[k]
 	return h
 
-# Expand data into full genotype matrix
+# Expand data from 2-bit to 8-bit genotype matrix
 cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 		double[::1] Q_nrm) noexcept nogil:
 	cdef:

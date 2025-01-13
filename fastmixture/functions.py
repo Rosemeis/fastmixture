@@ -41,11 +41,10 @@ def randomizedSVD(G, f, K, chunk, power, rng):
 	M, N = G.shape
 	W = ceil(M/chunk)
 	a = 0.0
-	L = K + 10
-	A = np.zeros((M, L))
+	L = max(K + 10, 20)
 	H = np.zeros((N, L))
 	X = np.zeros((chunk, N))
-	O = rng.standard_normal(size=(M, L))
+	A = rng.standard_normal(size=(M, L))
 
 	# Prime iteration
 	for w in np.arange(W):
@@ -53,7 +52,7 @@ def randomizedSVD(G, f, K, chunk, power, rng):
 		if w == (W-1): # Last chunk
 			X = np.zeros((M - M_w, N))
 		svd.plinkChunk(G, X, f, M_w)
-		H += np.dot(X.T, O[M_w:(M_w + X.shape[0])])
+		H += np.dot(X.T, A[M_w:(M_w + X.shape[0])])
 	Q, _, _ = eigSVD(H)
 	H.fill(0.0)
 
@@ -67,7 +66,8 @@ def randomizedSVD(G, f, K, chunk, power, rng):
 			svd.plinkChunk(G, X, f, M_w)
 			A[M_w:(M_w + X.shape[0])] = np.dot(X, Q)
 			H += np.dot(X.T, A[M_w:(M_w + X.shape[0])])
-		Q, S, _ = eigSVD(H - a*Q)
+		H -= a*Q
+		Q, S, _ = eigSVD(H)
 		H.fill(0.0)
 		if S[-1] > a:
 			a = 0.5*(S[-1] + a)
@@ -80,7 +80,7 @@ def randomizedSVD(G, f, K, chunk, power, rng):
 			X = np.zeros((M - M_w, N))
 		svd.plinkChunk(G, X, f, M_w)
 		A[M_w:(M_w + X.shape[0])] = np.dot(X, Q)
-	U, S, V = np.linalg.svd(A, full_matrices=False)
+	U, S, V = eigSVD(A)
 	U = np.ascontiguousarray(U[:,:K]*S[:K])
 	V = np.ascontiguousarray(np.dot(Q, V)[:,:K])
 	return U, V
