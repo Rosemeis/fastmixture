@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "0.94.5"
+VERSION = "0.94.6"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -184,13 +184,13 @@ def main():
 	# Setup containers for EM algorithm
 	converged = False
 	s = np.arange(M, dtype=np.uint32)
-	P1 = np.zeros((M, args.K))
-	P2 = np.zeros((M, args.K))
-	Q1 = np.zeros((N, args.K))
-	Q2 = np.zeros((N, args.K))
-	P_old = np.zeros((M, args.K))
-	Q_old = np.zeros((N, args.K))
-	Q_tmp = np.zeros((N, args.K))
+	P1 = np.zeros_like(P)
+	P2 = np.zeros_like(P)
+	Q1 = np.zeros_like(Q)
+	Q2 = np.zeros_like(Q)
+	P_old = np.zeros_like(P)
+	Q_old = np.zeros_like(Q)
+	Q_tmp = np.zeros_like(Q)
 	Q_bat = np.zeros(N)
 
 	# Accelerated priming iteration

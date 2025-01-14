@@ -342,9 +342,6 @@ cpdef void stepP(const unsigned char[:,::1] G, double[:,::1] P, const double[:,:
 				a = g/h
 				b = (2.0-g)/(1.0-h)
 				innerP(&Q[i,0], &P_thr[0], &P_thr[K], a, b, K)
-				for k in range(K):
-					P_thr[k] += Q[i,k]*a
-					P_thr[K+k] += Q[i,k]*b
 			outerP(&P[j,0], &P_thr[0], &P_thr[K], K)
 		free(P_thr)
 
