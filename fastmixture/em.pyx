@@ -115,7 +115,7 @@ cdef inline double computeBatchC(const double* p0, const double* p1, const doubl
 		for j in range(J):
 			k = l*J + j
 			u = p1[k]-p0[k]
-			v = (p2[k]-p1[k])-u
+			v = p2[k]-p1[k]-u
 			sum1 += u*u
 			sum2 += u*v
 	return min(max(-(sum1/sum2), 1.0), 256.0)
