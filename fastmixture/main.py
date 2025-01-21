@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "0.94.6"
+VERSION = "0.95.0"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -171,9 +171,8 @@ def main():
 			del f, U, V
 
 	# Estimate initial log-likelihood
-	ts = time()
 	L_old = shared.loglike(G, P, Q)
-	print(f"Initial loglike: {L_old:.1f}")
+	print(f"Initial log-like: {L_old:.1f}")
 
 	# Mini-batch parameters for stochastic EM
 	guard = True
@@ -208,10 +207,7 @@ def main():
 		if args.batches > 1: # Quasi-Newton mini-batch updates
 			rng.shuffle(s)
 			for b in np.arange(args.batches):
-				if b == (args.batches-1):
-					s_bat = s[(b*batch_M):M]
-				else:
-					s_bat = s[(b*batch_M):((b+1)*batch_M)]
+				s_bat = s[(b*batch_M):min((b+1)*batch_M, M)]
 				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_bat, y, s_bat)
 
 			# Full updates

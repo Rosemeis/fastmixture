@@ -8,7 +8,7 @@ from libc.stdlib cimport calloc, free
 ##### fastmixture ######
 # Inline functions
 cdef inline double project(double s) noexcept nogil:
-	return min(max(s, 1e-5), 1-(1e-5))
+	return min(max(s, 1e-5), 1.0-(1e-5))
 
 cdef inline double computeH(const double* p, const double* q, const size_t K) \
 		noexcept nogil:
@@ -59,15 +59,15 @@ cpdef void initP(const unsigned char[:,::1] G, double[:,::1] P, \
 		size_t K = P.shape[1]
 		size_t i, j, k
 		double* x
-		unsigned char D
+		unsigned char d
 	for j in prange(M):
 		x = <double*>calloc(K, sizeof(double))
 		for i in range(N):
-			D = G[j,i]
-			if D == 9:
+			d = G[j,i]
+			if d == 9:
 				continue
 			if y[i] > 0:
-				P[j,y[i]-1] += <double>D
+				P[j,y[i]-1] += <double>d
 				x[y[i]-1] += 1.0
 		for k in range(K):
 			if x[k] > 0.0:
@@ -87,7 +87,7 @@ cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 		if y[i] > 0:
 			for k in range(K):
 				if k == (y[i]-1):
-					Q[i,k] = 1-(1e-5)
+					Q[i,k] = 1.0-(1e-5)
 				else:
 					Q[i,k] = 1e-5
 		sumQ = 0.0
@@ -110,7 +110,7 @@ cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 			sumQ = 0.0
 			for k in range(K):
 				if k == (y[i]-1):
-					Q[i,k] = 1-(1e-5)
+					Q[i,k] = 1.0-(1e-5)
 				else:
 					Q[i,k] = 1e-5
 				sumQ += Q[i,k]
@@ -125,15 +125,14 @@ cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f) noexcept no
 		size_t N = G.shape[1]
 		size_t i, j
 		double n
-		unsigned char D
+		unsigned char d
 	for j in prange(M):
 		n = 0.0
 		for i in range(N):
-			D = G[j,i]
-			if D == 9:
-				continue
-			f[j] += <double>D
-			n = n + 1.0
+			d = G[j,i]
+			if d != 9:
+				f[j] += <double>d
+				n = n + 1.0
 		f[j] /= (2.0*n)
 
 # Log-likelihood
@@ -146,15 +145,16 @@ cpdef double loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
 		size_t i, j, k
 		double res = 0.0
 		double g, h
-		unsigned char D
+		double* pj
+		unsigned char d
 	for j in prange(M):
+		pj = &P[j,0]
 		for i in range(N):
-			D = G[j,i]
-			if D == 9:
-				continue
-			g = <double>D
-			h = computeH(&P[j,0], &Q[i,0], K)
-			res += g*log(h) + (2.0-g)*log1p(-h)
+			d = G[j,i]
+			if d != 9:
+				g = <double>d
+				h = computeH(pj, &Q[i,0], K)
+				res += g*log(h) + (2.0-g)*log1p(-h)
 	return res
 
 # Root-mean-square error
@@ -163,11 +163,11 @@ cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nog
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]
 		size_t i, k
-		double r = 0.0
+		double res = 0.0
 	for i in range(N):
 		for k in range(K):
-			r += (Q[i,k] - Q_pre[i,k])*(Q[i,k] - Q_pre[i,k])
-	return sqrt(r/<double>(N*K))
+			res += (Q[i,k] - Q_pre[i,k])*(Q[i,k] - Q_pre[i,k])
+	return sqrt(res/<double>(N*K))
 
 # Sum-of-squares used in evaluation 
 cpdef double sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
@@ -178,16 +178,17 @@ cpdef double sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
 		size_t K = Q.shape[1]
 		size_t i, j, k
 		double res = 0.0
-		double h, g
-		unsigned char D
+		double g, h
+		double* pj
+		unsigned char d
 	for j in prange(M):
+		pj = &P[j,0]
 		for i in range(N):
-			D = G[j,i]
-			if D == 9:
-				continue
-			g = <double>D
-			h = 2.0*computeH(&P[j,0], &Q[i,0], K)
-			res += (g-h)*(g-h)
+			d = G[j,i]
+			if d != 9:
+				g = <double>d
+				h = 2.0*computeH(pj, &Q[i,0], K)
+				res += (g-h)*(g-h)
 	return res
 
 # Kullback-Leibler divergence with average for Jensen-Shannon
