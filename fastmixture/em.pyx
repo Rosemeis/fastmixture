@@ -186,8 +186,8 @@ cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 		free(Q_thr)
 
 # Update P in acceleration
-cpdef void accelP(const unsigned char[:,::1] G, const double[:,::1] P, \
-		double[:,::1] P_new, const double[:,::1] Q, double[:,::1] Q_tmp) noexcept nogil:
+cpdef void accelP(const unsigned char[:,::1] G, double[:,::1] P, double[:,::1] P_new, \
+		const double[:,::1] Q, double[:,::1] Q_tmp) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
 		size_t B = G.shape[1]
@@ -270,7 +270,7 @@ cpdef void alphaQ(double[:,::1] Q0, const double[:,::1] Q1, const double[:,::1] 
 
 ### Batch functions
 # Update P in batch acceleration
-cpdef void accelBatchP(const unsigned char[:,::1] G, const double[:,::1] P, \
+cpdef void accelBatchP(const unsigned char[:,::1] G, double[:,::1] P, \
 		double[:,::1] P_new, const double[:,::1] Q, double[:,::1] Q_tmp, \
 		double[::1] Q_bat, const unsigned int[::1] s) noexcept nogil:
 	cdef:
@@ -364,7 +364,7 @@ cpdef void stepP(const unsigned char[:,::1] G, double[:,::1] P, const double[:,:
 		free(P_thr)
 
 # Update accelerated P
-cpdef void stepAccelP(const unsigned char[:,::1] G, const double[:,::1] P, \
+cpdef void stepAccelP(const unsigned char[:,::1] G, double[:,::1] P, \
 		double[:,::1] P_new, const double[:,::1] Q) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]

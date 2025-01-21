@@ -136,7 +136,7 @@ cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f) noexcept no
 		f[j] /= (2.0*n)
 
 # Log-likelihood
-cpdef double loglike(const unsigned char[:,::1] G, const double[:,::1] P, \
+cpdef double loglike(const unsigned char[:,::1] G, double[:,::1] P, \
 		const double[:,::1] Q) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
@@ -170,7 +170,7 @@ cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nog
 	return sqrt(res/<double>(N*K))
 
 # Sum-of-squares used in evaluation 
-cpdef double sumSquare(const unsigned char[:,::1] G, const double[:,::1] P, \
+cpdef double sumSquare(const unsigned char[:,::1] G, double[:,::1] P, \
 		const double[:,::1] Q) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
