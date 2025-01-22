@@ -34,7 +34,7 @@ To run the `fastmixture` software, you have a few options depending on your envi
 
 2. Using the fastmixture docker image with Docker or Apptainer
    
-   If you prefer or need to use a containerized setup (especially useful in HPC environments), a pre-built fastmixture container image is available on [Docker Hub](https://hub.docker.com/repository/docker/albarema/fastmixture/general). The latest version corresponds to *v0.94.3*.
+   If you prefer or need to use a containerized setup (especially useful in HPC environments), a pre-built fastmixture container image is available on [Docker Hub](https://hub.docker.com/repository/docker/albarema/fastmixture/general).
 
    A. Using Docker 
    1. Pull the image from  Docker Hub
