@@ -1,5 +1,4 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True
-import numpy as np
 cimport numpy as np
 from cython.parallel import parallel, prange
 from libc.stdlib cimport calloc, free
@@ -190,9 +189,8 @@ cpdef void accelP(const unsigned char[:,::1] G, double[:,::1] P, double[:,::1] P
 		const double[:,::1] Q, double[:,::1] Q_tmp) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
-		size_t B = G.shape[1]
-		size_t N = Q.shape[0]
-		size_t K = P.shape[1]
+		size_t N = G.shape[1]
+		size_t K = Q.shape[1]
 		size_t i, j, x, y
 		double g, h
 		double* pj
