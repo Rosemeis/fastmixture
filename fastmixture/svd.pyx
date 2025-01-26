@@ -46,12 +46,13 @@ cpdef void map2domain(double[:,::1] Q) noexcept nogil:
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]
 		size_t i, k
-		double sumQ
+		double sumQ, valQ
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
-			Q[i,k] = project(Q[i,k])
-			sumQ += Q[i,k]
+			valQ = project(Q[i,k])
+			sumQ += valQ
+			Q[i,k] = valQ
 		sumQ = 1.0/sumQ
 		for k in range(K):
 			Q[i,k] *= sumQ

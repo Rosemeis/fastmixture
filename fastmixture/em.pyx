@@ -86,13 +86,15 @@ cdef inline void outerQ(double* q, double* q_tmp, const double a, const size_t K
 	cdef:
 		size_t k
 		double sumQ = 0.0
+		double valQ
 	for k in range(K):
-		q[k] = project(q[k]*q_tmp[k]*a)
-		q_tmp[k] = 0.0
-		sumQ += q[k]
+		valQ = project(q[k]*q_tmp[k]*a)
+		sumQ += valQ
+		q[k] = valQ
 	sumQ = 1.0/sumQ
 	for k in range(K):
 		q[k] *= sumQ
+		q_tmp[k] = 0.0
 
 # Outer loop accelerated update for Q
 cdef inline void outerAccelQ(const double* q, double* q_new, double* q_tmp, \
@@ -100,13 +102,15 @@ cdef inline void outerAccelQ(const double* q, double* q_new, double* q_tmp, \
 	cdef:
 		size_t k
 		double sumQ = 0.0
+		double valQ
 	for k in range(K):
-		q_new[k] = project(q[k]*q_tmp[k]*a)
-		q_tmp[k] = 0.0
-		sumQ += q_new[k]
+		valQ = project(q[k]*q_tmp[k]*a)
+		sumQ += valQ
+		q_new[k] = valQ
 	sumQ = 1.0/sumQ
 	for k in range(K):
 		q_new[k] *= sumQ
+		q_tmp[k] = 0.0
 
 # Estimate QN factor
 cdef inline double computeC(const double* x0, const double* x1, const double* x2, \
@@ -253,14 +257,15 @@ cpdef void alphaQ(double[:,::1] Q0, const double[:,::1] Q1, const double[:,::1] 
 		size_t N = Q0.shape[0]
 		size_t K = Q0.shape[1]
 		size_t i, k
-		double c1, c2, sumQ
+		double c1, c2, sumQ, valQ
 	c1 = computeC(&Q0[0,0], &Q1[0,0], &Q2[0,0], N*K)
 	c2 = 1.0 - c1
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
-			Q0[i,k] = project(c2*Q1[i,k] + c1*Q2[i,k])
-			sumQ += Q0[i,k]
+			valQ = project(c2*Q1[i,k] + c1*Q2[i,k])
+			sumQ += valQ
+			Q0[i,k] = valQ
 		sumQ = 1.0/sumQ
 		for k in range(K):
 			Q0[i,k] *= sumQ	

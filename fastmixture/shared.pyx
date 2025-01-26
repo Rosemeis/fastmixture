@@ -81,7 +81,7 @@ cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]
 		size_t i, k
-		double sumQ
+		double sumQ, valQ
 	for i in range(N):
 		if y[i] > 0:
 			for k in range(K):
@@ -91,8 +91,9 @@ cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 					Q[i,k] = 1e-5
 		sumQ = 0.0
 		for k in range(K):
-			Q[i,k] = project(Q[i,k])
-			sumQ += Q[i,k]
+			valQ = project(Q[i,k])
+			sumQ += valQ
+			Q[i,k] = valQ
 		sumQ = 1.0/sumQ
 		for k in range(K):
 			Q[i,k] *= sumQ
@@ -103,16 +104,17 @@ cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]
 		size_t i, k
-		double sumQ
+		double sumQ, valQ
 	for i in range(N):
 		if y[i] > 0:
 			sumQ = 0.0
 			for k in range(K):
 				if k == (y[i]-1):
-					Q[i,k] = 1.0-(1e-5)
+					valQ = 1.0-(1e-5)
 				else:
-					Q[i,k] = 1e-5
-				sumQ += Q[i,k]
+					valQ = 1e-5
+				sumQ += valQ
+				Q[i,k] = valQ
 			sumQ = 1.0/sumQ
 			for k in range(K):
 				Q[i,k] *= sumQ
