@@ -1,5 +1,6 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True
 cimport numpy as np
+cimport openmp as omp
 from cython.parallel import parallel, prange
 from libc.math cimport log, log1p, sqrt
 from libc.stdlib cimport calloc, free
@@ -30,6 +31,8 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 		unsigned char[4] recode = [2, 9, 1, 0]
 		unsigned char mask = 3
 		unsigned char byte
+		omp.omp_lock_t mutex
+	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
 		Q_len = <double*>calloc(N, sizeof(double))
 		for j in prange(M):
@@ -44,10 +47,13 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 					i = i + 1
 					if i == N:
 						break
-		with gil:
-			for x in range(N):
-				Q_nrm[x] += Q_len[x]
+		# omp critical
+		omp.omp_set_lock(&mutex)
+		for x in range(N):
+			Q_nrm[x] += Q_len[x]
+		omp.omp_unset_lock(&mutex)
 		free(Q_len)
+	omp.omp_destroy_lock(&mutex)
 
 # Initialize P in supervised mode
 cpdef void initP(const unsigned char[:,::1] G, double[:,::1] P, \

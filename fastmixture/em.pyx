@@ -1,5 +1,6 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True
 cimport numpy as np
+cimport openmp as omp
 from cython.parallel import parallel, prange
 from libc.stdlib cimport calloc, free
 
@@ -169,6 +170,8 @@ cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 		double* P_thr
 		double* Q_thr
 		unsigned char d
+		omp.omp_lock_t mutex
+	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		Q_thr = <double*>calloc(N*K, sizeof(double))
@@ -181,12 +184,16 @@ cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 					h = computeH(pj, &Q[i,0], K)
 					inner(pj, &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], g, h, K)
 			outerP(pj, &P_thr[0], &P_thr[K], K)
-		with gil:
-			for x in range(N):
-				for y in range(K):
-					Q_tmp[x,y] += Q_thr[x*K + y]
+		
+		# omp critical
+		omp.omp_set_lock(&mutex)
+		for x in range(N):
+			for y in range(K):
+				Q_tmp[x,y] += Q_thr[x*K + y]
+		omp.omp_unset_lock(&mutex)
 		free(P_thr)
 		free(Q_thr)
+	omp.omp_destroy_lock(&mutex)
 
 # Update P in acceleration
 cpdef void accelP(const unsigned char[:,::1] G, double[:,::1] P, double[:,::1] P_new, \
@@ -201,6 +208,8 @@ cpdef void accelP(const unsigned char[:,::1] G, double[:,::1] P, double[:,::1] P
 		double* P_thr
 		double* Q_thr
 		unsigned char d
+		omp.omp_lock_t mutex
+	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		Q_thr = <double*>calloc(N*K, sizeof(double))
@@ -213,12 +222,16 @@ cpdef void accelP(const unsigned char[:,::1] G, double[:,::1] P, double[:,::1] P
 					h = computeH(pj, &Q[i,0], K)
 					inner(pj, &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], g, h, K)
 			outerAccelP(pj, &P_new[j,0], &P_thr[0], &P_thr[K], K)
-		with gil:
-			for x in range(N):
-				for y in range(K):
-					Q_tmp[x,y] += Q_thr[x*K + y]
+		
+		# omp critical
+		omp.omp_set_lock(&mutex)
+		for x in range(N):
+			for y in range(K):
+				Q_tmp[x,y] += Q_thr[x*K + y]
+		omp.omp_unset_lock(&mutex)
 		free(P_thr)
 		free(Q_thr)
+	omp.omp_destroy_lock(&mutex)
 
 # Accelerated jump for P (QN)
 cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] P2) \
@@ -287,6 +300,8 @@ cpdef void accelBatchP(const unsigned char[:,::1] G, double[:,::1] P, \
 		double* Q_thr
 		double* Q_len
 		unsigned char d
+		omp.omp_lock_t mutex
+	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		Q_thr = <double*>calloc(N*K, sizeof(double))
@@ -302,14 +317,18 @@ cpdef void accelBatchP(const unsigned char[:,::1] G, double[:,::1] P, \
 					h = computeH(pl, &Q[i,0], K)
 					inner(pl, &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], g, h, K)
 			outerAccelP(pl, &P_new[l,0], &P_thr[0], &P_thr[K], K)
-		with gil:
-			for x in range(N):
-				Q_bat[x] += Q_len[x]
-				for y in range(K):
-					Q_tmp[x,y] += Q_thr[x*K + y]
+		
+		# omp critical
+		omp.omp_set_lock(&mutex)
+		for x in range(N):
+			Q_bat[x] += Q_len[x]
+			for y in range(K):
+				Q_tmp[x,y] += Q_thr[x*K + y]
+		omp.omp_unset_lock(&mutex)
 		free(P_thr)
 		free(Q_thr)
 		free(Q_len)
+	omp.omp_destroy_lock(&mutex)
 
 # Batch accelerated jump for P (QN)
 cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, \
@@ -403,6 +422,8 @@ cpdef void stepQ(const unsigned char[:,::1] G, double[:,::1] P, \
 		double* pj
 		double* Q_thr
 		unsigned char d
+		omp.omp_lock_t mutex
+	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
 		Q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
@@ -413,8 +434,12 @@ cpdef void stepQ(const unsigned char[:,::1] G, double[:,::1] P, \
 					g = <double>d
 					h = computeH(pj, &Q[i,0], K)
 					innerQ(pj, &Q_thr[i*K], g, h, K)
-		with gil:
-			for x in range(N):
-				for y in range(K):
-					Q_tmp[x,y] += Q_thr[x*K + y]
+		
+		# omp critical
+		omp.omp_set_lock(&mutex)
+		for x in range(N):
+			for y in range(K):
+				Q_tmp[x,y] += Q_thr[x*K + y]
+		omp.omp_unset_lock(&mutex)
 		free(Q_thr)
+	omp.omp_destroy_lock(&mutex)
