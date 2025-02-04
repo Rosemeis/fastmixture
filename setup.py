@@ -6,24 +6,24 @@ extensions = [
 	Extension(
 		name="fastmixture.em",
 		sources=["fastmixture/em.pyx"],
-		extra_compile_args=['-fopenmp', '-O3', '-g0', '-Wno-unreachable-code'],
-		extra_link_args=['-fopenmp'],
+		extra_compile_args=['-fopenmp', '-O3', '-ffast-math', '-march=native', '-fno-wrapv'],
+		extra_link_args=['-fopenmp', '-lm'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 	),
 	Extension(
 		name="fastmixture.svd",
 		sources=["fastmixture/svd.pyx"],
-		extra_compile_args=['-fopenmp', '-O3', '-g0', '-Wno-unreachable-code'],
-		extra_link_args=['-fopenmp'],
+		extra_compile_args=['-fopenmp', '-O3', '-ffast-math', '-march=native', '-fno-wrapv'],
+		extra_link_args=['-fopenmp', '-lm'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 	),
 	Extension(
 		name="fastmixture.shared",
 		sources=["fastmixture/shared.pyx"],
-		extra_compile_args=['-fopenmp', '-O3', '-g0', '-Wno-unreachable-code'],
-		extra_link_args=['-fopenmp'],
+		extra_compile_args=['-fopenmp', '-O3', '-ffast-math', '-march=native', '-fno-wrapv'],
+		extra_link_args=['-fopenmp', '-lm'],
 		include_dirs=[numpy.get_include()],
 		define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 	)
@@ -31,7 +31,7 @@ extensions = [
 
 setup(
 	name="fastmixture",
-	version="0.95.1",
+	version="0.95.2",
 	author="Jonas Meisner",
 	author_email="meisnerucph@gmail.com",
 	description="Fast Ancestry Estimation",

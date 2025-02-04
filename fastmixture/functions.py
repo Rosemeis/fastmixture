@@ -42,15 +42,15 @@ def randomizedSVD(G, f, K, chunk, power, rng):
 	W = ceil(M/chunk)
 	a = 0.0
 	L = max(K + 10, 20)
-	H = np.zeros((N, L))
-	X = np.zeros((chunk, N))
-	A = rng.standard_normal(size=(M, L))
+	H = np.zeros((N, L), dtype=np.float32)
+	X = np.zeros((chunk, N), dtype=np.float32)
+	A = rng.standard_normal(size=(M, L), dtype=np.float32)
 
 	# Prime iteration
 	for w in np.arange(W):
 		M_w = w*chunk
 		if w == (W-1): # Last chunk
-			X = np.zeros((M - M_w, N))
+			X = np.zeros((M - M_w, N), dtype=np.float32)
 		svd.plinkChunk(G, X, f, M_w)
 		H += np.dot(X.T, A[M_w:(M_w + X.shape[0])])
 	Q, _, _ = eigSVD(H)
@@ -58,11 +58,11 @@ def randomizedSVD(G, f, K, chunk, power, rng):
 
 	# Power iterations
 	for _ in np.arange(power):
-		X = np.zeros((chunk, N))
+		X = np.zeros((chunk, N), dtype=np.float32)
 		for w in np.arange(W):
 			M_w = w*chunk
 			if w == (W-1): # Last chunk
-				X = np.zeros((M - M_w, N))
+				X = np.zeros((M - M_w, N), dtype=np.float32)
 			svd.plinkChunk(G, X, f, M_w)
 			A[M_w:(M_w + X.shape[0])] = np.dot(X, Q)
 			H += np.dot(X.T, A[M_w:(M_w + X.shape[0])])
@@ -73,11 +73,11 @@ def randomizedSVD(G, f, K, chunk, power, rng):
 			a = 0.5*(S[-1] + a)
 
 	# Extract singular vectors
-	X = np.zeros((chunk, N))
+	X = np.zeros((chunk, N), dtype=np.float32)
 	for w in np.arange(W):
 		M_w = w*chunk
 		if w == (W-1): # Last chunk
-			X = np.zeros((M - M_w, N))
+			X = np.zeros((M - M_w, N), dtype=np.float32)
 		svd.plinkChunk(G, X, f, M_w)
 		A[M_w:(M_w + X.shape[0])] = np.dot(X, Q)
 	U, S, V = eigSVD(A)
@@ -88,7 +88,7 @@ def randomizedSVD(G, f, K, chunk, power, rng):
 ### Alternating least square (ALS) for initializing Q and F
 def extractFactor(U, V, f, K, iterations, tole, rng):
 	M = U.shape[0]
-	P = rng.random(size=(M, K)).clip(min=1e-5, max=1-(1e-5))
+	P = rng.random(size=(M, K), dtype=np.float32).clip(min=1e-5, max=1-(1e-5))
 	I = np.dot(P, np.linalg.pinv(np.dot(P.T, P)))
 	Q = 0.5*np.dot(V, np.dot(U.T, I)) + np.sum(I*f.reshape(-1,1), axis=0)
 	svd.map2domain(Q)
@@ -111,7 +111,7 @@ def extractFactor(U, V, f, K, iterations, tole, rng):
 		# Check convergence
 		if svd.rmse(Q, Q0) < tole:
 			break
-	return P, Q
+	return P.astype(float), Q.astype(float)
 
 ### Accelerated updates
 # Full QN update

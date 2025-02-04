@@ -2,13 +2,17 @@
 cimport numpy as np
 cimport openmp as omp
 from cython.parallel import parallel, prange
+from libc.math cimport fmax, fmin
 from libc.stdlib cimport calloc, free
 
 ##### fastmixture #####
 ### Inline functions
 # Truncate parameters to domain
 cdef inline double project(const double s) noexcept nogil:
-	return min(max(s, 1e-5), 1.0-(1e-5))
+	cdef:
+		double min_val = 1e-5
+		double max_val = 1.0-(1e-5)
+	return fmin(fmax(s, min_val), max_val)
 
 # Estimate individual allele frequencies
 cdef inline double computeH(const double* p, const double* q, const size_t K) \
@@ -92,9 +96,8 @@ cdef inline void outerQ(double* q, double* q_tmp, const double a, const size_t K
 		valQ = project(q[k]*q_tmp[k]*a)
 		sumQ += valQ
 		q[k] = valQ
-	sumQ = 1.0/sumQ
 	for k in range(K):
-		q[k] *= sumQ
+		q[k] /= sumQ
 		q_tmp[k] = 0.0
 
 # Outer loop accelerated update for Q
@@ -108,9 +111,8 @@ cdef inline void outerAccelQ(const double* q, double* q_new, double* q_tmp, \
 		valQ = project(q[k]*q_tmp[k]*a)
 		sumQ += valQ
 		q_new[k] = valQ
-	sumQ = 1.0/sumQ
 	for k in range(K):
-		q_new[k] *= sumQ
+		q_new[k] /= sumQ
 		q_tmp[k] = 0.0
 
 # Estimate QN factor
@@ -118,6 +120,8 @@ cdef inline double computeC(const double* x0, const double* x1, const double* x2
 		const size_t I) noexcept nogil:
 	cdef:
 		size_t i
+		double min_val = 1.0
+		double max_val = 256.0
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double u, v
@@ -126,7 +130,7 @@ cdef inline double computeC(const double* x0, const double* x1, const double* x2
 		v = x2[i] - x1[i] - u
 		sum1 += u*u
 		sum2 += u*v
-	return min(max(-(sum1/sum2), 1.0), 256.0)
+	return fmin(fmax(-(sum1/sum2), min_val), max_val)
 
 # Alpha update for P
 cdef inline void computeA(double* p0, const double* p1, const double* p2, \
@@ -142,6 +146,8 @@ cdef inline double computeBatchC(const double* p0, const double* p1, const doubl
 		const unsigned int* s, const size_t I, const size_t J) noexcept nogil:
 	cdef:
 		size_t i, j, k, l
+		double min_val = 1.0
+		double max_val = 256.0
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double u, v
@@ -153,7 +159,7 @@ cdef inline double computeBatchC(const double* p0, const double* p1, const doubl
 			v = p2[k] - p1[k] - u
 			sum1 += u*u
 			sum2 += u*v
-	return min(max(-(sum1/sum2), 1.0), 256.0)
+	return fmin(fmax(-(sum1/sum2), min_val), max_val)
 
 
 ### Update functions
@@ -166,7 +172,7 @@ cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 		size_t K = Q.shape[1]
 		size_t i, j, x, y
 		double g, h
-		double* pj
+		double* p
 		double* P_thr
 		double* Q_thr
 		unsigned char d
@@ -176,14 +182,14 @@ cpdef void updateP(const unsigned char[:,::1] G, double[:,::1] P, \
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		Q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
-			pj = &P[j,0]
+			p = &P[j,0]
 			for i in range(N):
 				d = G[j,i]
 				if d != 9:
 					g = <double>d
-					h = computeH(pj, &Q[i,0], K)
-					inner(pj, &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], g, h, K)
-			outerP(pj, &P_thr[0], &P_thr[K], K)
+					h = computeH(p, &Q[i,0], K)
+					inner(p, &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], g, h, K)
+			outerP(p, &P_thr[0], &P_thr[K], K)
 		
 		# omp critical
 		omp.omp_set_lock(&mutex)
@@ -204,7 +210,7 @@ cpdef void accelP(const unsigned char[:,::1] G, double[:,::1] P, double[:,::1] P
 		size_t K = Q.shape[1]
 		size_t i, j, x, y
 		double g, h
-		double* pj
+		double* p
 		double* P_thr
 		double* Q_thr
 		unsigned char d
@@ -214,14 +220,14 @@ cpdef void accelP(const unsigned char[:,::1] G, double[:,::1] P, double[:,::1] P
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		Q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
-			pj = &P[j,0]
+			p = &P[j,0]
 			for i in range(N):
 				d = G[j,i]
 				if d != 9:
 					g = <double>d
-					h = computeH(pj, &Q[i,0], K)
-					inner(pj, &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], g, h, K)
-			outerAccelP(pj, &P_new[j,0], &P_thr[0], &P_thr[K], K)
+					h = computeH(p, &Q[i,0], K)
+					inner(p, &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], g, h, K)
+			outerAccelP(p, &P_new[j,0], &P_thr[0], &P_thr[K], K)
 		
 		# omp critical
 		omp.omp_set_lock(&mutex)
@@ -279,9 +285,8 @@ cpdef void alphaQ(double[:,::1] Q0, const double[:,::1] Q1, const double[:,::1] 
 			valQ = project(c2*Q1[i,k] + c1*Q2[i,k])
 			sumQ += valQ
 			Q0[i,k] = valQ
-		sumQ = 1.0/sumQ
 		for k in range(K):
-			Q0[i,k] *= sumQ	
+			Q0[i,k] /= sumQ	
 
 
 ### Batch functions
@@ -295,7 +300,7 @@ cpdef void accelBatchP(const unsigned char[:,::1] G, double[:,::1] P, \
 		size_t K = Q.shape[1]
 		size_t i, j, l, x, y
 		double g, h
-		double* pl
+		double* p
 		double* P_thr
 		double* Q_thr
 		double* Q_len
@@ -308,15 +313,15 @@ cpdef void accelBatchP(const unsigned char[:,::1] G, double[:,::1] P, \
 		Q_len = <double*>calloc(N, sizeof(double))
 		for j in prange(M):
 			l = s[j]
-			pl = &P[l,0]
+			p = &P[l,0]
 			for i in range(N):
 				d = G[l,i]
 				if d != 9:
 					Q_len[i] += 1.0
 					g = <double>d
-					h = computeH(pl, &Q[i,0], K)
-					inner(pl, &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], g, h, K)
-			outerAccelP(pl, &P_new[l,0], &P_thr[0], &P_thr[K], K)
+					h = computeH(p, &Q[i,0], K)
+					inner(p, &Q[i,0], &P_thr[0], &P_thr[K], &Q_thr[i*K], g, h, K)
+			outerAccelP(p, &P_new[l,0], &P_thr[0], &P_thr[K], K)
 		
 		# omp critical
 		omp.omp_set_lock(&mutex)
@@ -369,20 +374,20 @@ cpdef void stepP(const unsigned char[:,::1] G, double[:,::1] P, const double[:,:
 		size_t K = Q.shape[1]
 		size_t i, j
 		double g, h
-		double* pj
+		double* p
 		double* P_thr
 		unsigned char d
 	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		for j in prange(M):
-			pj = &P[j,0]
+			p = &P[j,0]
 			for i in range(N):
 				d = G[j,i]
 				if d != 9:
 					g = <double>d
-					h = computeH(pj, &Q[i,0], K)
+					h = computeH(p, &Q[i,0], K)
 					innerP(&Q[i,0], &P_thr[0], &P_thr[K], g, h, K)
-			outerP(pj, &P_thr[0], &P_thr[K], K)
+			outerP(p, &P_thr[0], &P_thr[K], K)
 		free(P_thr)
 
 # Update accelerated P
@@ -394,20 +399,20 @@ cpdef void stepAccelP(const unsigned char[:,::1] G, double[:,::1] P, \
 		size_t K = Q.shape[1]
 		size_t i, j
 		double g, h
-		double* pj
+		double* p
 		double* P_thr
 		unsigned char d
 	with nogil, parallel():
 		P_thr = <double*>calloc(2*K, sizeof(double))
 		for j in prange(M):
-			pj = &P[j,0]
+			p = &P[j,0]
 			for i in range(N):
 				d = G[j,i]
 				if d != 9:
 					g = <double>d
-					h = computeH(pj, &Q[i,0], K)
+					h = computeH(p, &Q[i,0], K)
 					innerP(&Q[i,0], &P_thr[0], &P_thr[K], g, h, K)
-			outerAccelP(pj, &P_new[j,0], &P_thr[0], &P_thr[K], K)
+			outerAccelP(p, &P_new[j,0], &P_thr[0], &P_thr[K], K)
 		free(P_thr)
 
 # Update Q temp arrays
@@ -419,7 +424,7 @@ cpdef void stepQ(const unsigned char[:,::1] G, double[:,::1] P, \
 		size_t K = Q.shape[1]
 		size_t i, j, x, y
 		double g, h
-		double* pj
+		double* p
 		double* Q_thr
 		unsigned char d
 		omp.omp_lock_t mutex
@@ -427,13 +432,13 @@ cpdef void stepQ(const unsigned char[:,::1] G, double[:,::1] P, \
 	with nogil, parallel():
 		Q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
-			pj = &P[j,0]
+			p = &P[j,0]
 			for i in range(N):
 				d = G[j,i]
 				if d != 9:
 					g = <double>d
-					h = computeH(pj, &Q[i,0], K)
-					innerQ(pj, &Q_thr[i*K], g, h, K)
+					h = computeH(p, &Q[i,0], K)
+					innerQ(p, &Q_thr[i*K], g, h, K)
 		
 		# omp critical
 		omp.omp_set_lock(&mutex)

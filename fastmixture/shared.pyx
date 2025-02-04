@@ -2,14 +2,18 @@
 cimport numpy as np
 cimport openmp as omp
 from cython.parallel import parallel, prange
-from libc.math cimport log, log1p, sqrt
+from libc.math cimport fmax, fmin, log, log1p, sqrt
 from libc.stdlib cimport calloc, free
 
 ##### fastmixture ######
-# Inline functions
-cdef inline double project(double s) noexcept nogil:
-	return min(max(s, 1e-5), 1.0-(1e-5))
+# Inline function for truncating parameters to domain
+cdef inline double project(const double s) noexcept nogil:
+	cdef:
+		double min_val = 1e-5
+		double max_val = 1.0-(1e-5)
+	return fmin(fmax(s, min_val), max_val)
 
+# Inline function for computing individual allele frequency
 cdef inline double computeH(const double* p, const double* q, const size_t K) \
 		noexcept nogil:
 	cdef:
@@ -26,7 +30,7 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 		size_t M = G.shape[0]
 		size_t N = G.shape[1]
 		size_t N_b = B.shape[1]
-		size_t i, j, b, x, bytepart
+		size_t i, j, b, x, bit
 		double* Q_len
 		unsigned char[4] recode = [2, 9, 1, 0]
 		unsigned char mask = 3
@@ -39,14 +43,14 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 			i = 0
 			for b in range(N_b):
 				byte = B[j,b]
-				for bytepart in range(4):
-					G[j,i] = recode[byte & mask]
+				for bit in range(4):
+					G[j,i] = recode[(byte >> 2*bit) & mask]
 					if G[j,i] != 9:
 						Q_len[i] += 1.0
-					byte = byte >> 2
 					i = i + 1
 					if i == N:
 						break
+		
 		# omp critical
 		omp.omp_set_lock(&mutex)
 		for x in range(N):
@@ -100,9 +104,8 @@ cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 			valQ = project(Q[i,k])
 			sumQ += valQ
 			Q[i,k] = valQ
-		sumQ = 1.0/sumQ
 		for k in range(K):
-			Q[i,k] *= sumQ
+			Q[i,k] /= sumQ
 
 # Update Q in supervised mode
 cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
@@ -121,26 +124,26 @@ cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 					valQ = 1e-5
 				sumQ += valQ
 				Q[i,k] = valQ
-			sumQ = 1.0/sumQ
 			for k in range(K):
-				Q[i,k] *= sumQ
+				Q[i,k] /= sumQ
 
 # Estimate minor allele frequencies
-cpdef void estimateFreq(const unsigned char[:,::1] G, double[::1] f) noexcept nogil:
+cpdef void estimateFreq(const unsigned char[:,::1] G, float[::1] f) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
 		size_t N = G.shape[1]
 		size_t i, j
-		double n
+		float c, n
 		unsigned char d
 	for j in prange(M):
+		c = 0.0
 		n = 0.0
 		for i in range(N):
 			d = G[j,i]
 			if d != 9:
-				f[j] += <double>d
+				c = c + <float>d
 				n = n + 1.0
-		f[j] /= (2.0*n)
+		f[j] = c/(2.0*n)
 
 # Log-likelihood
 cpdef double loglike(const unsigned char[:,::1] G, double[:,::1] P, \
@@ -204,10 +207,11 @@ cpdef double divKL(const double[:,::1] A, const double[:,::1] B) noexcept nogil:
 		size_t N = A.shape[0]
 		size_t K = A.shape[1]
 		size_t i, k
+		double eps = 1e-10
 		double d = 0.0
 		double a
 	for i in range(N):
 		for k in range(K):
 			a = (A[i,k] + B[i,k])*0.5
-			d += A[i,k]*log(A[i,k]/a + 1e-9)
+			d += A[i,k]*log(A[i,k]/a + eps)
 	return d/<double>N

@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "0.95.1"
+VERSION = "0.95.2"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -157,7 +157,7 @@ def main():
 			Q = rng.random(size=(N, args.K)).clip(min=1e-5, max=1-(1e-5))
 			Q /= np.sum(Q, axis=1, keepdims=True)
 		else: # SVD-based initialization
-			f = np.zeros(M)
+			f = np.zeros(M, dtype=np.float32)
 			shared.estimateFreq(G, f)
 			assert (np.min(f) > 0.0) & (np.max(f) < 1.0), "Please perform MAF filtering!"
 
