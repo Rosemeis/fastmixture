@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "0.95.2"
+VERSION = "0.95.3"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -120,8 +120,8 @@ def main():
 	assert os.path.isfile(f"{args.bfile}.bim"), "bim file doesn't exist!"
 	assert os.path.isfile(f"{args.bfile}.fam"), "fam file doesn't exist!"
 	print("Reading data...", end="", flush=True)
-	G, Q_nrm, M, N = functions.readPlink(args.bfile)
-	assert not np.any(Q_nrm == 0), "Sample(s) with zero information!"
+	G, q_nrm, M, N = functions.readPlink(args.bfile)
+	assert not np.any(q_nrm == 0), "Sample(s) with zero information!"
 	rng = np.random.default_rng(args.seed) # Set up random number generator
 	print(f"\rLoaded {N} samples and {M} SNPs.")
 
@@ -190,13 +190,13 @@ def main():
 	P_old = np.zeros_like(P)
 	Q_old = np.zeros_like(Q)
 	Q_tmp = np.zeros_like(Q)
-	Q_bat = np.zeros(N)
+	q_bat = np.zeros(N)
 
 	# Accelerated priming iteration
 	ts = time()
-	functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
-	functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
-	functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
+	functions.steps(G, P, Q, Q_tmp, q_nrm, y)
+	functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
+	functions.steps(G, P, Q, Q_tmp, q_nrm, y)
 	print(f"Performed priming iteration\t({time()-ts:.1f}s)\n", flush=True)
 
 	### fastmixture algorithm
@@ -208,23 +208,23 @@ def main():
 			rng.shuffle(s)
 			for b in np.arange(args.batches):
 				s_bat = s[(b*batch_M):min((b+1)*batch_M, M)]
-				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_bat, y, s_bat)
+				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_bat, y, s_bat)
 
 			# Full updates
 			if safety: # Safety updates
-				functions.safetySteps(G, P, Q, Q_tmp, Q_nrm, y)
-				functions.safetyQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
-				functions.safetySteps(G, P, Q, Q_tmp, Q_nrm, y)
+				functions.safetySteps(G, P, Q, Q_tmp, q_nrm, y)
+				functions.safetyQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
+				functions.safetySteps(G, P, Q, Q_tmp, q_nrm, y)
 			else:
-				functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
+				functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
 		else: # Updates with log-likelihood check
 			if guard:
 				if safety:
-					functions.safetyQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
-					functions.safetySteps(G, P, Q, Q_tmp, Q_nrm, y)
+					functions.safetyQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
+					functions.safetySteps(G, P, Q, Q_tmp, q_nrm, y)
 				else:
-					functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y)
-					functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
+					functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
+					functions.steps(G, P, Q, Q_tmp, q_nrm, y)
 				L_cur = shared.loglike(G, P, Q)
 				if L_cur > L_saf:
 					L_saf = L_cur
@@ -234,7 +234,7 @@ def main():
 					guard = False
 					L_saf = L_old
 			else: # Safety updates
-				L_cur = functions.safetyCheck(G, P, Q, Q_tmp, P1, P2, Q1, Q2, Q_nrm, \
+				L_cur = functions.safetyCheck(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, \
 					y, L_saf)
 				if L_cur > L_saf:
 					L_saf = L_cur
@@ -273,12 +273,12 @@ def main():
 							batch_M = ceil(M/args.batches)
 							L_pre = L_cur
 							if not safety:
-								functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
+								functions.steps(G, P, Q, Q_tmp, q_nrm, y)
 						else: # Turn off mini-batch acceleration
 							print("Running standard updates.")
 							L_saf = L_cur
 							if not safety:
-								functions.steps(G, P, Q, Q_tmp, Q_nrm, y)
+								functions.steps(G, P, Q, Q_tmp, q_nrm, y)
 					else:
 						batch_L = L_cur
 						if L_cur > L_old:

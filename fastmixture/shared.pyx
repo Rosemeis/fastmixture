@@ -7,14 +7,14 @@ from libc.stdlib cimport calloc, free
 
 ##### fastmixture ######
 # Inline function for truncating parameters to domain
-cdef inline double project(const double s) noexcept nogil:
+cdef inline double _project(const double s) noexcept nogil:
 	cdef:
 		double min_val = 1e-5
 		double max_val = 1.0-(1e-5)
 	return fmin(fmax(s, min_val), max_val)
 
 # Inline function for computing individual allele frequency
-cdef inline double computeH(const double* p, const double* q, const size_t K) \
+cdef inline double _computeH(const double* p, const double* q, const size_t K) \
 		noexcept nogil:
 	cdef:
 		size_t k
@@ -25,20 +25,20 @@ cdef inline double computeH(const double* p, const double* q, const size_t K) \
 
 # Expand data from 2-bit to 8-bit genotype matrix
 cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
-		double[::1] Q_nrm) noexcept nogil:
+		double[::1] q_nrm) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
 		size_t N = G.shape[1]
 		size_t N_b = B.shape[1]
 		size_t i, j, b, x, bit
-		double* Q_len
+		double* Q_cnt
 		unsigned char[4] recode = [2, 9, 1, 0]
 		unsigned char mask = 3
 		unsigned char byte
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
-		Q_len = <double*>calloc(N, sizeof(double))
+		Q_cnt = <double*>calloc(N, sizeof(double))
 		for j in prange(M):
 			i = 0
 			for b in range(N_b):
@@ -46,7 +46,7 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 				for bit in range(4):
 					G[j,i] = recode[(byte >> 2*bit) & mask]
 					if G[j,i] != 9:
-						Q_len[i] += 1.0
+						Q_cnt[i] += 1.0
 					i = i + 1
 					if i == N:
 						break
@@ -54,9 +54,9 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 		# omp critical
 		omp.omp_set_lock(&mutex)
 		for x in range(N):
-			Q_nrm[x] += Q_len[x]
+			q_nrm[x] += Q_cnt[x]
 		omp.omp_unset_lock(&mutex)
-		free(Q_len)
+		free(Q_cnt)
 	omp.omp_destroy_lock(&mutex)
 
 # Initialize P in supervised mode
@@ -68,20 +68,18 @@ cpdef void initP(const unsigned char[:,::1] G, double[:,::1] P, \
 		size_t K = P.shape[1]
 		size_t i, j, k
 		double* x
-		unsigned char d
 	for j in prange(M):
 		x = <double*>calloc(K, sizeof(double))
 		for i in range(N):
-			d = G[j,i]
-			if d == 9:
+			if G[j,i] == 9:
 				continue
 			if y[i] > 0:
-				P[j,y[i]-1] += <double>d
+				P[j,y[i]-1] += <double>G[j,i]
 				x[y[i]-1] += 1.0
 		for k in range(K):
 			if x[k] > 0.0:
 				P[j,k] /= (2.0*x[k])
-			P[j,k] = project(P[j,k])
+			P[j,k] = _project(P[j,k])
 			x[k] = 0.0
 		free(x)
 
@@ -91,7 +89,7 @@ cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]
 		size_t i, k
-		double sumQ, valQ
+		double sumQ
 	for i in range(N):
 		if y[i] > 0:
 			for k in range(K):
@@ -101,9 +99,8 @@ cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 					Q[i,k] = 1e-5
 		sumQ = 0.0
 		for k in range(K):
-			valQ = project(Q[i,k])
-			sumQ += valQ
-			Q[i,k] = valQ
+			Q[i,k] = _project(Q[i,k])
+			sumQ += Q[i,k]
 		for k in range(K):
 			Q[i,k] /= sumQ
 
@@ -113,17 +110,16 @@ cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]
 		size_t i, k
-		double sumQ, valQ
+		double sumQ
 	for i in range(N):
 		if y[i] > 0:
 			sumQ = 0.0
 			for k in range(K):
 				if k == (y[i]-1):
-					valQ = 1.0-(1e-5)
+					Q[i,k] = 1.0-(1e-5)
 				else:
-					valQ = 1e-5
-				sumQ += valQ
-				Q[i,k] = valQ
+					Q[i,k] = 1e-5
+				sumQ += Q[i,k]
 			for k in range(K):
 				Q[i,k] /= sumQ
 
@@ -134,14 +130,12 @@ cpdef void estimateFreq(const unsigned char[:,::1] G, float[::1] f) noexcept nog
 		size_t N = G.shape[1]
 		size_t i, j
 		float c, n
-		unsigned char d
 	for j in prange(M):
 		c = 0.0
 		n = 0.0
 		for i in range(N):
-			d = G[j,i]
-			if d != 9:
-				c = c + <float>d
+			if G[j,i] != 9:
+				c = c + <float>G[j,i]
 				n = n + 1.0
 		f[j] = c/(2.0*n)
 
@@ -152,19 +146,17 @@ cpdef double loglike(const unsigned char[:,::1] G, double[:,::1] P, \
 		size_t M = G.shape[0]
 		size_t N = G.shape[1]
 		size_t K = Q.shape[1]
-		size_t i, j, k
+		size_t i, j
 		double res = 0.0
-		double g, h
-		double* pj
-		unsigned char d
+		double d, h
+		double* p
 	for j in prange(M):
-		pj = &P[j,0]
+		p = &P[j,0]
 		for i in range(N):
-			d = G[j,i]
-			if d != 9:
-				g = <double>d
-				h = computeH(pj, &Q[i,0], K)
-				res += g*log(h) + (2.0-g)*log1p(-h)
+			if G[j,i] != 9:
+				h = _computeH(p, &Q[i,0], K)
+				d = <double>G[j,i]
+				res += d*log(h) + (2.0-d)*log1p(-h)
 	return res
 
 # Root-mean-square error
@@ -186,19 +178,17 @@ cpdef double sumSquare(const unsigned char[:,::1] G, double[:,::1] P, \
 		size_t M = G.shape[0]
 		size_t N = G.shape[1]
 		size_t K = Q.shape[1]
-		size_t i, j, k
+		size_t i, j
 		double res = 0.0
-		double g, h
-		double* pj
-		unsigned char d
+		double d, h
+		double* p
 	for j in prange(M):
-		pj = &P[j,0]
+		p = &P[j,0]
 		for i in range(N):
-			d = G[j,i]
-			if d != 9:
-				g = <double>d
-				h = 2.0*computeH(pj, &Q[i,0], K)
-				res += (g-h)*(g-h)
+			if G[j,i] != 9:
+				h = 2.0*_computeH(p, &Q[i,0], K)
+				d = <double>G[j,i]
+				res += (d-h)*(d-h)
 	return res
 
 # Kullback-Leibler divergence with average for Jensen-Shannon

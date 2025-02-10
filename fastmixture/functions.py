@@ -22,11 +22,11 @@ def readPlink(bfile):
 	B.shape = (M, N_bytes)
 
 	# Read in full genotypes into 8-bit array
-	Q_nrm = np.zeros(N)
+	q_nrm = np.zeros(N)
 	G = np.zeros((M, N), dtype=np.uint8)
-	shared.expandGeno(B, G, Q_nrm)
+	shared.expandGeno(B, G, q_nrm)
 	del B
-	return G, Q_nrm, M, N
+	return G, q_nrm, M, N
 
 ### SVD through eigendecomposition
 def eigSVD(C):
@@ -115,16 +115,16 @@ def extractFactor(U, V, f, K, iterations, tole, rng):
 
 ### Accelerated updates
 # Full QN update
-def quasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y):
+def quasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, q_nrm, y):
 	# 1st EM step
 	em.accelP(G, P0, P1, Q0, Q_tmp)
-	em.accelQ(Q0, Q1, Q_tmp, Q_nrm)
+	em.accelQ(Q0, Q1, Q_tmp, q_nrm)
 	if y is not None:
 		shared.superQ(Q1, y)
 
 	# 2nd EM step
 	em.accelP(G, P1, P2, Q1, Q_tmp)
-	em.accelQ(Q1, Q2, Q_tmp, Q_nrm)
+	em.accelQ(Q1, Q2, Q_tmp, q_nrm)
 	if y is not None:
 		shared.superQ(Q2, y)
 
@@ -156,22 +156,22 @@ def quasiBatch(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, Q_bat, y, s):
 
 ### Safety updates with independent updates
 # Single updates
-def steps(G, P, Q, Q_tmp, Q_nrm, y):
+def steps(G, P, Q, Q_tmp, q_nrm, y):
 	em.updateP(G, P, Q, Q_tmp)
-	em.updateQ(Q, Q_tmp, Q_nrm)
+	em.updateQ(Q, Q_tmp, q_nrm)
 	if y is not None:
 		shared.superQ(Q, y)
 
 # Single safety updates
-def safetySteps(G, P, Q, Q_tmp, Q_nrm, y):
+def safetySteps(G, P, Q, Q_tmp, q_nrm, y):
 	em.stepP(G, P, Q)
 	em.stepQ(G, P, Q, Q_tmp)
-	em.updateQ(Q, Q_tmp, Q_nrm)
+	em.updateQ(Q, Q_tmp, q_nrm)
 	if y is not None:
 		shared.superQ(Q, y)
 
 # Full accelerated safety update
-def safetyQuasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y):
+def safetyQuasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, q_nrm, y):
 	# P steps
 	em.stepAccelP(G, P0, P1, Q0)
 	em.stepAccelP(G, P1, P2, Q0)
@@ -179,11 +179,11 @@ def safetyQuasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y):
 
 	# Q steps
 	em.stepQ(G, P0, Q0, Q_tmp)
-	em.accelQ(Q0, Q1, Q_tmp, Q_nrm)
+	em.accelQ(Q0, Q1, Q_tmp, q_nrm)
 	if y is not None:
 		shared.superQ(Q1, y)
 	em.stepQ(G, P0, Q1, Q_tmp)
-	em.accelQ(Q1, Q2, Q_tmp, Q_nrm)
+	em.accelQ(Q1, Q2, Q_tmp, q_nrm)
 	if y is not None:
 		shared.superQ(Q2, y)
 	em.alphaQ(Q0, Q1, Q2)
@@ -191,7 +191,7 @@ def safetyQuasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y):
 		shared.superQ(Q0, y)
 
 # Full accelerated safety update with bounceback
-def safetyCheck(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y, L_saf):
+def safetyCheck(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, q_nrm, y, L_saf):
 	# P steps
 	em.stepAccelP(G, P0, P1, Q0)
 	em.stepAccelP(G, P1, P2, Q0)
@@ -199,11 +199,11 @@ def safetyCheck(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, Q_nrm, y, L_saf):
 
 	# Q steps
 	em.stepQ(G, P0, Q0, Q_tmp)
-	em.accelQ(Q0, Q1, Q_tmp, Q_nrm)
+	em.accelQ(Q0, Q1, Q_tmp, q_nrm)
 	if y is not None:
 		shared.superQ(Q1, y)
 	em.stepQ(G, P0, Q1, Q_tmp)
-	em.accelQ(Q1, Q2, Q_tmp, Q_nrm)
+	em.accelQ(Q1, Q2, Q_tmp, q_nrm)
 	if y is not None:
 		shared.superQ(Q2, y)
 	em.alphaQ(Q0, Q1, Q2)

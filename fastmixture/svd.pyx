@@ -5,7 +5,7 @@ from libc.math cimport fmaxf, fminf, sqrtf
 
 ##### Randomized SVD - PCAone method #####
 # Truncate parameters to domain
-cdef inline float project(float s) noexcept nogil:
+cdef inline float _project(float s) noexcept nogil:
 	cdef:
 		float min_val = 1e-5
 		float max_val = 1.0-(1e-5)
@@ -18,15 +18,13 @@ cpdef void plinkChunk(const unsigned char[:,::1] G, float[:,::1] X, \
 		size_t M = X.shape[0]
 		size_t N = X.shape[1]
 		size_t i, j, l
-		unsigned char g
-		float fl
+		float u
 	for j in prange(M):
 		l = M_b+j
-		fl = f[l]
+		u = 2.0*f[l]
 		for i in range(N):
-			g = G[l,i]
-			if g != 9:
-				X[j,i] = <float>g - 2.0*fl
+			if G[l,i] != 9:
+				X[j,i] = <float>G[l,i] - u
 			else:
 				X[j,i] = 0.0
 
@@ -49,12 +47,11 @@ cpdef void map2domain(float[:,::1] Q) noexcept nogil:
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]
 		size_t i, k
-		float sumQ, valQ
+		float sumQ
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
-			valQ = project(Q[i,k])
-			sumQ += valQ
-			Q[i,k] = valQ
+			Q[i,k] = _project(Q[i,k])
+			sumQ += Q[i,k]
 		for k in range(K):
 			Q[i,k] /= sumQ
