@@ -50,7 +50,7 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 					i = i + 1
 					if i == N:
 						break
-		
+
 		# omp critical
 		omp.omp_set_lock(&mutex)
 		for x in range(N):

@@ -125,13 +125,25 @@ cdef inline double _computeC(const double* x0, const double* x1, const double* x
 	return fmin(fmax(-(sum1/sum2), min_val), max_val)
 
 # Alpha update for P
-cdef inline void _computeA(double* p0, const double* p1, const double* p2, \
+cdef inline void _computeP(double* p0, const double* p1, const double* p2, \
 		const double c1, const size_t I) noexcept nogil:
 	cdef:
 		size_t i
 		double c2 = 1.0 - c1
 	for i in prange(I):
 		p0[i] = _project(c2*p1[i] + c1*p2[i])
+
+# Alpha update for Q
+cdef inline void _computeQ(double* q0, const double* q1, const double* q2, \
+		const double c1, const double c2, const size_t K) noexcept nogil:
+	cdef:
+		size_t k
+		double sumQ = 0.0
+	for k in range(K):
+		q0[k] = _project(c2*q1[k] + c1*q2[k])
+		sumQ += q0[k]
+	for k in range(K):
+		q0[k] /= sumQ
 
 # Estimate QN factor for batch P
 cdef inline double _computeBatchC(const double* p0, const double* p1, const double* p2, \
@@ -226,14 +238,14 @@ cpdef void accelP(const unsigned char[:,::1] G, double[:,::1] P, double[:,::1] P
 	omp.omp_destroy_lock(&mutex)
 
 # Accelerated jump for P (QN)
-cpdef void alphaP(double[:,::1] P0, const double[:,::1] P1, const double[:,::1] P2) \
+cpdef void alphaP(double[:,::1] P, const double[:,::1] P1, const double[:,::1] P2) \
 		noexcept nogil:
 	cdef:
-		size_t M = P0.shape[0]
-		size_t K = P0.shape[1]
+		size_t M = P.shape[0]
+		size_t K = P.shape[1]
 		double c
-	c = _computeC(&P0[0,0], &P1[0,0], &P2[0,0], M*K)
-	_computeA(&P0[0,0], &P1[0,0], &P2[0,0], c, M*K)
+	c = _computeC(&P[0,0], &P1[0,0], &P2[0,0], M*K)
+	_computeP(&P[0,0], &P1[0,0], &P2[0,0], c, M*K)
 
 # Update Q from temp arrays
 cpdef void updateQ(double[:,::1] Q, double[:,::1] Q_tmp, double[::1] q_nrm) \
@@ -256,22 +268,17 @@ cpdef void accelQ(const double[:,::1] Q, double[:,::1] Q_new, double[:,::1] Q_tm
 		_outerAccelQ(&Q[i,0], &Q_new[i,0], &Q_tmp[i,0], 1.0/(2.0*q_nrm[i]), K)
 
 # Accelerated jump for Q (QN)
-cpdef void alphaQ(double[:,::1] Q0, const double[:,::1] Q1, const double[:,::1] Q2) \
+cpdef void alphaQ(double[:,::1] Q, const double[:,::1] Q1, const double[:,::1] Q2) \
 		noexcept nogil:
 	cdef:
-		size_t N = Q0.shape[0]
-		size_t K = Q0.shape[1]
-		size_t i, k
-		double c1, c2, sumQ
-	c1 = _computeC(&Q0[0,0], &Q1[0,0], &Q2[0,0], N*K)
+		size_t N = Q.shape[0]
+		size_t K = Q.shape[1]
+		size_t i
+		double c1, c2
+	c1 = _computeC(&Q[0,0], &Q1[0,0], &Q2[0,0], N*K)
 	c2 = 1.0 - c1
 	for i in range(N):
-		sumQ = 0.0
-		for k in range(K):
-			Q0[i,k] = _project(c2*Q1[i,k] + c1*Q2[i,k])
-			sumQ += Q0[i,k]
-		for k in range(K):
-			Q0[i,k] /= sumQ
+		_computeQ(&Q[i,0], &Q1[i,0], &Q2[i,0], c1, c2, K)
 
 
 ### Batch functions
@@ -318,21 +325,19 @@ cpdef void accelBatchP(const unsigned char[:,::1] G, double[:,::1] P, \
 	omp.omp_destroy_lock(&mutex)
 
 # Batch accelerated jump for P (QN)
-cpdef void alphaBatchP(double[:,::1] P0, const double[:,::1] P1, \
+cpdef void alphaBatchP(double[:,::1] P, const double[:,::1] P1, \
 		const double[:,::1] P2, const unsigned int[::1] s) noexcept nogil:
 	cdef:
 		size_t M = s.shape[0]
-		size_t K = P0.shape[1]
+		size_t K = P.shape[1]
 		size_t j, k, l
-		double sum1 = 0.0
-		double sum2 = 0.0
 		double c1, c2
-	c1 = _computeBatchC(&P0[0,0], &P1[0,0], &P2[0,0], &s[0], M, K)
+	c1 = _computeBatchC(&P[0,0], &P1[0,0], &P2[0,0], &s[0], M, K)
 	c2 = 1.0 - c1
 	for j in prange(M):
 		l = s[j]
 		for k in range(K):
-			P0[l,k] = _project(c2*P1[l,k] + c1*P2[l,k])
+			P[l,k] = _project(c2*P1[l,k] + c1*P2[l,k])
 
 # Batch update Q from temp arrays
 cpdef void accelBatchQ(const double[:,::1] Q, double[:,::1] Q_new, double[:,::1] Q_tmp, \
@@ -340,11 +345,11 @@ cpdef void accelBatchQ(const double[:,::1] Q, double[:,::1] Q_new, double[:,::1]
 	cdef:
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]
-		size_t i, k
-		double a
+		size_t i
 	for i in range(N):
 		_outerAccelQ(&Q[i,0], &Q_new[i,0], &Q_tmp[i,0], 1.0/(2.0*q_bat[i]), K)
 		q_bat[i] = 0.0
+
 
 ### Safety steps
 # Update P
@@ -420,4 +425,42 @@ cpdef void stepQ(const unsigned char[:,::1] G, double[:,::1] P, \
 				Q_tmp[x,y] += q_thr[x*K + y]
 		omp.omp_unset_lock(&mutex)
 		free(q_thr)
+	omp.omp_destroy_lock(&mutex)
+
+# Update Q temp arrays in batch acceleration
+cpdef void stepBatchQ(const unsigned char[:,::1] G, double[:,::1] P, \
+		const double[:,::1] Q, double[:,::1] Q_tmp, double[::1] q_bat, \
+		const unsigned int[::1] s) noexcept nogil:
+	cdef:
+		size_t M = s.shape[0]
+		size_t N = G.shape[1]
+		size_t K = Q.shape[1]
+		size_t i, j, l, x, y
+		double h
+		double* p
+		double* q_thr
+		double* q_len
+		omp.omp_lock_t mutex
+	omp.omp_init_lock(&mutex)
+	with nogil, parallel():
+		q_thr = <double*>calloc(N*K, sizeof(double))
+		q_len = <double*>calloc(N, sizeof(double))
+		for j in prange(M):
+			l = s[j]
+			p = &P[l,0]
+			for i in range(N):
+				if G[l,i] != 9:
+					q_len[i] += 1.0
+					h = _computeH(p, &Q[i,0], K)
+					_innerQ(p, &q_thr[i*K], G[l,i], h, K)
+		
+		# omp critical
+		omp.omp_set_lock(&mutex)
+		for x in range(N):
+			q_bat[x] += q_len[x]
+			for y in range(K):
+				Q_tmp[x,y] += q_thr[x*K + y]
+		omp.omp_unset_lock(&mutex)
+		free(q_thr)
+		free(q_len)
 	omp.omp_destroy_lock(&mutex)

@@ -59,7 +59,7 @@ os.environ["OPENBLAS_MAX_THREADS"] = str(args.threads)
 # Import numerical libraries
 import numpy as np
 from fastmixture import shared
-from fastmixture import functions
+from fastmixture import utils
 
 ### Read data
 # Read Q file
@@ -76,7 +76,7 @@ if args.rmse or args.jsd:
 	S = np.loadtxt(f"{args.tfile}", dtype=float)
 else:
 	# Read PLINK files
-	G, _, M, N = functions.readPlink(args.bfile)
+	G, _, M, N = utils.readPlink(args.bfile)
 
 	# Read P file
 	P = np.loadtxt(f"{args.pfile}", dtype=float)

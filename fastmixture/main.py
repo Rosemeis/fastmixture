@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "0.95.3"
+VERSION = "1.0.0"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -36,6 +36,8 @@ parser.add_argument("--batches", metavar="INT", type=int, default=32,
 	help="Number of initial mini-batches (32)")
 parser.add_argument("--supervised", metavar="FILE",
 	help="Path to population assignment file")
+parser.add_argument("--projection", metavar="FILE",
+	help="Path to ancestral allele frequencies file")
 parser.add_argument("--check", metavar="INT", type=int, default=5,
 	help="Number of iterations between check for convergence")
 parser.add_argument("--power", metavar="INT", type=int, default=10,
@@ -111,8 +113,7 @@ def main():
 
 	# Load numerical libraries
 	import numpy as np
-	from math import ceil
-	from fastmixture import functions
+	from fastmixture import utils
 	from fastmixture import shared
 
 	### Read data
@@ -120,13 +121,14 @@ def main():
 	assert os.path.isfile(f"{args.bfile}.bim"), "bim file doesn't exist!"
 	assert os.path.isfile(f"{args.bfile}.fam"), "fam file doesn't exist!"
 	print("Reading data...", end="", flush=True)
-	G, q_nrm, M, N = functions.readPlink(args.bfile)
+	G, q_nrm, M, N = utils.readPlink(args.bfile)
 	assert not np.any(q_nrm == 0), "Sample(s) with zero information!"
 	rng = np.random.default_rng(args.seed) # Set up random number generator
 	print(f"\rLoaded {N} samples and {M} SNPs.")
 
-	# Supervised setting
-	if args.supervised is not None:
+	# Set up parameters
+	if args.supervised is not None: # Supervised mode
+		# Check input of ancestral sources
 		print("Ancestry estimation in supervised mode!")
 		y = np.loadtxt(args.supervised, dtype=np.uint8).reshape(-1)
 		assert y.shape[0] == N, "Number of samples differ between files!"
@@ -139,22 +141,28 @@ def main():
 		z -= 1
 		z = np.sort(z)
 
-		# Set up containers and initialize
+		# Initialize parameters
 		P = rng.random(size=(M, args.K))
 		Q = rng.random(size=(N, args.K))
 		P[:,z] = 0.0
 		shared.initP(G, P, y)
 		shared.initQ(Q, y)
 		del z
-	else:
-		# Initalize parameters in unsupervised mode
-		y = None
+	elif args.projection is not None: # Projection mode
+		# Check input of ancestral allele frequencies
+		print("Ancestry estimation in projection mode!")
+		P = np.loadtxt(args.projection, dtype=float).clip(min=1e-5, max=1.0-(1e-5))
+		assert P.shape[0] == M, "Number of SNPs differ between files!"
+		assert P.shape[1] == args.K, "Wrong number of ancestral sources!"
 
-		# Random initialization
-		if args.random_init:
+		# Initialize Q matrix
+		Q = rng.random(size=(N, args.K)).clip(min=1e-5, max=1.0-(1e-5))
+		Q /= np.sum(Q, axis=1, keepdims=True)
+	else: # Standard unsupervised mode
+		if args.random_init: # Random initialization
 			print("Random initialization.")
-			P = rng.random(size=(M, args.K)).clip(min=1e-5, max=1-(1e-5))
-			Q = rng.random(size=(N, args.K)).clip(min=1e-5, max=1-(1e-5))
+			P = rng.random(size=(M, args.K)).clip(min=1e-5, max=1.0-(1e-5))
+			Q = rng.random(size=(N, args.K)).clip(min=1e-5, max=1.0-(1e-5))
 			Q /= np.sum(Q, axis=1, keepdims=True)
 		else: # SVD-based initialization
 			f = np.zeros(M, dtype=np.float32)
@@ -164,140 +172,34 @@ def main():
 			# Initialize P and Q matrices from SVD and ALS
 			ts = time()
 			print("Performing SVD and ALS.", end="", flush=True)
-			U, V = functions.randomizedSVD(G, f, args.K-1, args.chunk, args.power, rng)
-			P, Q = functions.extractFactor(U, V, f, args.K, args.als_iter, \
+			U, V = utils.randomizedSVD(G, f, args.K-1, args.chunk, args.power, rng)
+			P, Q = utils.extractFactor(U, V, f, args.K, args.als_iter, \
 				args.als_tole, rng)
 			print(f"\rExtracted factor matrices\t({time()-ts:.1f}s)")
 			del f, U, V
+		y = None
 
-	# Estimate initial log-likelihood
-	L_old = shared.loglike(G, P, Q)
-	print(f"Initial log-like: {L_old:.1f}")
-
-	# Mini-batch parameters for stochastic EM
-	guard = True
-	safety = False
-	batch_L = L_pre = L_old
-	batch_M = ceil(M/args.batches)
-
-	# Setup containers for EM algorithm
-	converged = False
+	# Set up containers for EM algorithm
 	s = np.arange(M, dtype=np.uint32)
-	P1 = np.zeros_like(P)
-	P2 = np.zeros_like(P)
 	Q1 = np.zeros_like(Q)
 	Q2 = np.zeros_like(Q)
-	P_old = np.zeros_like(P)
 	Q_old = np.zeros_like(Q)
 	Q_tmp = np.zeros_like(Q)
 	q_bat = np.zeros(N)
+	if args.projection is None:
+		P1 = np.zeros_like(P)
+		P2 = np.zeros_like(P)
+		P_old = np.zeros_like(P)
 
-	# Accelerated priming iteration
-	ts = time()
-	functions.steps(G, P, Q, Q_tmp, q_nrm, y)
-	functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
-	functions.steps(G, P, Q, Q_tmp, q_nrm, y)
-	print(f"Performed priming iteration\t({time()-ts:.1f}s)\n", flush=True)
-
-	### fastmixture algorithm
-	ts = time()
-	print("Estimating Q and P using mini-batch EM.")
-	print(f"Using {args.batches} mini-batches.")
-	for it in np.arange(args.iter):
-		if args.batches > 1: # Quasi-Newton mini-batch updates
-			rng.shuffle(s)
-			for b in np.arange(args.batches):
-				s_bat = s[(b*batch_M):min((b+1)*batch_M, M)]
-				functions.quasiBatch(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_bat, y, s_bat)
-
-			# Full updates
-			if safety: # Safety updates
-				functions.safetySteps(G, P, Q, Q_tmp, q_nrm, y)
-				functions.safetyQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
-				functions.safetySteps(G, P, Q, Q_tmp, q_nrm, y)
-			else:
-				functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
-		else: # Updates with log-likelihood check
-			if guard:
-				if safety:
-					functions.safetyQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
-					functions.safetySteps(G, P, Q, Q_tmp, q_nrm, y)
-				else:
-					functions.quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
-					functions.steps(G, P, Q, Q_tmp, q_nrm, y)
-				L_cur = shared.loglike(G, P, Q)
-				if L_cur > L_saf:
-					L_saf = L_cur
-				else: # Remove guard and perform safety updates
-					memoryview(P.ravel())[:] = memoryview(P_old.ravel())
-					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
-					guard = False
-					L_saf = L_old
-			else: # Safety updates
-				L_cur = functions.safetyCheck(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, \
-					y, L_saf)
-				if L_cur > L_saf:
-					L_saf = L_cur
-				else: # Break and exit with best estimate
-					memoryview(P.ravel())[:] = memoryview(P_old.ravel())
-					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
-					converged = True
-					L_cur = L_old
-					print("No improvement. Returning with best estimate!")
-					print(f"Final log-likelihood: {L_cur:.1f}")
-					break
-			if L_cur > L_old: # Update best guess
-				memoryview(P_old.ravel())[:] = memoryview(P.ravel())
-				memoryview(Q_old.ravel())[:] = memoryview(Q.ravel())
-				L_old = L_cur
-
-		# Log-likelihood convergence check
-		if (it + 1) % args.check == 0:
-			if args.batches > 1:
-				L_cur = shared.loglike(G, P, Q)
-				print(f"({it+1})\tLog-like: {L_cur:.1f}\t({time()-ts:.1f}s)", flush=True)
-				if (L_cur < L_pre) and (not safety): # Check unstable mini-batch
-					print("Turning on safety updates.")
-					memoryview(P.ravel())[:] = memoryview(P_old.ravel())
-					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
-					batch_L = float('-inf')
-					L_cur = L_old
-					safety = True
-				else:
-					if (L_cur < batch_L) or (abs(L_cur - batch_L) < args.tole):				
-						# Halve number of batches
-						args.batches = args.batches//2
-						if args.batches > 1:
-							print(f"Halving mini-batches to {args.batches}.")
-							batch_L = float('-inf')
-							batch_M = ceil(M/args.batches)
-							L_pre = L_cur
-							if not safety:
-								functions.steps(G, P, Q, Q_tmp, q_nrm, y)
-						else: # Turn off mini-batch acceleration
-							print("Running standard updates.")
-							L_saf = L_cur
-							if not safety:
-								functions.steps(G, P, Q, Q_tmp, q_nrm, y)
-					else:
-						batch_L = L_cur
-						if L_cur > L_old:
-							memoryview(P_old.ravel())[:] = memoryview(P.ravel())
-							memoryview(Q_old.ravel())[:] = memoryview(Q.ravel())
-							L_old = L_cur
-			else:
-				print(f"({it+1})\tLog-like: {L_cur:.1f}\t({time()-ts:.1f}s)", flush=True)
-				if (abs(L_cur - L_pre) < args.tole):
-					if L_cur < L_old:
-						memoryview(P.ravel())[:] = memoryview(P_old.ravel())
-						memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
-						L_cur = L_old
-					converged = True
-					print("Converged!")
-					print(f"Final log-likelihood: {L_cur:.1f}")
-					break
-				L_pre = L_cur
-			ts = time()
+	# Fastmixture
+	if args.projection is not None: # Projection mode
+		from fastmixture import projection
+		L, it, con = projection.fastProject(G, P, Q, Q1, Q2, Q_tmp, Q_old, q_nrm, \
+			q_bat, s, args.iter, args.tole, args.check, args.batches, rng)
+	else: # Unsupervised or supervised mode
+		from fastmixture import functions
+		L, it, con = functions.fastRun(G, P, Q, P1, P2, Q1, Q2, Q_tmp, P_old, Q_old, \
+			q_nrm, q_bat, s, y, args.iter, args.tole, args.check, args.batches, rng)
 
 	# Print elapsed time for estimation
 	t_tot = time()-start
@@ -308,20 +210,20 @@ def main():
 	### Save estimates and write output to log-file
 	np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.Q", Q, fmt="%.6f")
 	print(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q")
-	if not args.no_freqs: # Save ancestral allele frequencies
+	if not args.no_freqs or (args.projection is not None): # Save frequencies
 		np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.P", P, fmt="%.6f")
 		print(f"Saved P matrix as {args.out}.K{args.K}.s{args.seed}.P")
-	
+
 	# Write to log-file
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "a") as log:
-		log.write(f"\nFinal log-likelihood: {L_cur:.1f}\n")
-		if converged:
+		log.write(f"\nFinal log-likelihood: {L:.1f}\n")
+		if con:
 			log.write(f"Converged in {it+1} iterations.\n")
 		else:
 			log.write(f"EM algorithm did not converge in {args.iter} iterations!\n")
 		log.write(f"Total elapsed time: {t_min}m{t_sec}s\n")
 		log.write(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q\n")
-		if not args.no_freqs:
+		if not args.no_freqs or (args.projection is not None):
 			log.write(f"Saved P matrix as {args.out}.K{args.K}.s{args.seed}.P\n")
 
 

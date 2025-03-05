@@ -1,4 +1,4 @@
-# fastmixture (v0.95.3)
+# fastmixture (v1.0.0)
 `fastmixture` is a new software for estimating ancestry proportions in unrelated individuals. It is significantly faster than previous model-based software while providing accurate and robust ancestry estimates.
 
 
@@ -49,7 +49,7 @@ To run the `fastmixture` software, you have a few options depending on your envi
    ```bash
    # Mount the directory containing the PLINK files using --volume flag (e.g. `pwd`/project-data/) 
    # Indicate the cpus available for the container to run
-   # e.g. data prefix is 'toy.data' and results prefix is 'toy.fast'
+   # e.g. data prefix is 'toy.data' and output prefix is 'toy.fast'
    docker run --cpus=8 -v `pwd`/project-data/:/data/ albarema/fastmixture fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
    ```
 
@@ -70,15 +70,21 @@ To run the `fastmixture` software, you have a few options depending on your envi
    apptainer run <fastmixture.sif> fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
    ```
 
-## Citation
-Please cite our paper in [*Peer Community Journal*](https://peercommunityjournal.org/articles/10.24072/pcjournal.503/).
+If you run into issues with your installation on a HPC system, it could be due to a mismatch of CPU architectures between login and compute nodes (illegal instruction). You can try and remove every instance of the `--march=native` compiler flag in the [setup.py](./setup.py) file which optimizes `fastmixture` to your specific hardware setup. Another alternative is to use the [uv package manager](https://docs.astral.sh/uv/), where you can run `fastmixture` in a temporary and isolated environment by simply adding `uvx` in front of the `fastmixture` command.
 
+```bash
+# uv tool run example
+uvx fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
+```
+
+## Citation
+Please cite our paper in [*Peer Community Journal*](https://peercommunityjournal.org/articles/10.24072/pcjournal.503/).\
 Preprint also available on [BioRxiv](https://doi.org/10.1101/2024.07.08.602454).
 
 ## Usage
 `fastmixture` requires input data in binary [PLINK](https://www.cog-genomics.org/plink/1.9/input#bed) format. 
 - Choose the value of `K` that best fits your data. We recommend performing principal component analysis (PCA) first as an exploratory analysis before running `fastmixture`.
-- Use multiple seeds for your analysis to ensure robust and reliable results (e.g. ≥ 5).
+- Use multiple seeds for your analysis to ensure robust and reliable results (e.g. ≥ 3).
 
 ```bash
 # Using binary PLINK files for K=3
@@ -94,7 +100,20 @@ A supervised mode is available in `fastmixture` using `--supervised`. Provide a 
 # Using binary PLINK files for K=3
 fastmixture --bfile data --K 3 --threads 32 --seed 1 --out super.test --supervised data.labels
 
-# Outputs Q and P files (super.K3.s1.Q and super.K3.s1.P)
+# Outputs Q and P files (super.test.K3.s1.Q and super.test.K3.s1.P)
+```
+
+### Projection
+A projection mode is available in `fastmixture` using `--projection`. Provide a file of pre-computed ancestral allele frequencies (P-file) from a previous `fastmixture` run based on a reference dataset. Only ancestry proportions (Q-file) are estimated in a new dataset. SNPs must be strictly overlapping between the datasets.
+
+```bash
+# fastmixture in reference dataset
+fastmixture --bfile ref --K 3 --threads 32 --seed 1 --out ref.test
+
+# fastmixture using projection mode in new dataset
+fastmixture --bfile new --K 3 --threads 32 --seed 1 --out new.test --projection ref.test.K3.s1.P
+
+# Outputs Q file (new.test.K3.s1.Q)
 ```
 
 ### Extra options
@@ -106,7 +125,7 @@ fastmixture --bfile data --K 3 --threads 32 --seed 1 --out super.test --supervis
 * `--chunk`, number of SNPs to process at a time in randomized SVD (8192)
 * `--als-iter`, specify maximum number of iterations in ALS procedure (1000)
 * `--als-tole`, specify tolerance for convergence in ALS procedure (1e-4)
-* `--no-freqs`, do not save ancestral allele frequencies (P-matrix)
+* `--no-freqs`, do not save ancestral allele frequencies (P-file)
 * `--random-init`, random parameter initialization instead of SVD
 
 ## License
