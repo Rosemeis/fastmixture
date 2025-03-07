@@ -70,7 +70,7 @@ To run the `fastmixture` software, you have a few options depending on your envi
    apptainer run <fastmixture.sif> fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
    ```
 
-If you run into issues with your installation on a HPC system, it could be due to a mismatch of CPU architectures between login and compute nodes (illegal instruction). You can try and remove every instance of the `-march=native` compiler flag in the [setup.py](./setup.py) file which optimizes `fastmixture` to your specific hardware setup. Another alternative is to use the [uv package manager](https://docs.astral.sh/uv/), where you can run `fastmixture` in a temporary and isolated environment by simply adding `uvx` in front of the `fastmixture` command.
+If you run into issues with your installation on a HPC system, it could be due to a mismatch of CPU architectures between login and compute nodes (illegal instruction). You can try and remove every instance of the `march=native` compiler flag in the [setup.py](./setup.py) file which optimizes `fastmixture` to your specific hardware setup. Another alternative is to use the [uv package manager](https://docs.astral.sh/uv/), where you can run `fastmixture` in a temporary and isolated environment by simply adding `uvx` in front of the `fastmixture` command.
 
 ```bash
 # uv tool run example
