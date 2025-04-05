@@ -8,7 +8,7 @@ from libc.stdlib cimport calloc, free
 
 cdef double PRO_MIN = 1e-5
 cdef double PRO_MAX = 1.0-(1e-5)
-cdef double ACC_MIN = 0.0
+cdef double ACC_MIN = 1.0
 cdef double ACC_MAX = 256.0
 
 ##### fastmixture #####
