@@ -193,6 +193,7 @@ cpdef void updateP(
 		double* p
 		double* p_thr
 		double* q_thr
+		uint8_t* g
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
@@ -200,10 +201,11 @@ cpdef void updateP(
 		q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
 			p = &P[j,0]
+			g = &G[j,0]
 			for i in range(N):
-				if G[j,i] != 9:
+				if g[i] != 9:
 					h = _computeH(p, &Q[i,0], K)
-					_inner(p, &Q[i,0], &p_thr[0], &p_thr[K], &q_thr[i*K], G[j,i], h, K)
+					_inner(p, &Q[i,0], &p_thr[0], &p_thr[K], &q_thr[i*K], g[i], h, K)
 			_outerP(p, &p_thr[0], &p_thr[K], K)
 		
 		# omp critical
@@ -229,6 +231,7 @@ cpdef void accelP(
 		double* p
 		double* p_thr
 		double* q_thr
+		uint8_t* g
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
@@ -236,10 +239,11 @@ cpdef void accelP(
 		q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
 			p = &P[j,0]
+			g = &G[j,0]
 			for i in range(N):
-				if G[j,i] != 9:
+				if g[i] != 9:
 					h = _computeH(p, &Q[i,0], K)
-					_inner(p, &Q[i,0], &p_thr[0], &p_thr[K], &q_thr[i*K], G[j,i], h, K)
+					_inner(p, &Q[i,0], &p_thr[0], &p_thr[K], &q_thr[i*K], g[i], h, K)
 			_outerAccelP(p, &P_new[j,0], &p_thr[0], &p_thr[K], K)
 		
 		# omp critical
@@ -316,6 +320,7 @@ cpdef void accelBatchP(
 		double* p_thr
 		double* q_thr
 		double* q_len
+		uint8_t* g
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
@@ -325,11 +330,12 @@ cpdef void accelBatchP(
 		for j in prange(M):
 			l = s[j]
 			p = &P[l,0]
+			g = &G[l,0]
 			for i in range(N):
-				if G[l,i] != 9:
+				if g[i] != 9:
 					q_len[i] += 1.0
 					h = _computeH(p, &Q[i,0], K)
-					_inner(p, &Q[i,0], &p_thr[0], &p_thr[K], &q_thr[i*K], G[l,i], h, K)
+					_inner(p, &Q[i,0], &p_thr[0], &p_thr[K], &q_thr[i*K], g[i], h, K)
 			_outerAccelP(p, &P_new[l,0], &p_thr[0], &p_thr[K], K)
 		
 		# omp critical
@@ -386,14 +392,16 @@ cpdef void stepP(
 		double h
 		double* p
 		double* p_thr
+		uint8_t* g
 	with nogil, parallel():
 		p_thr = <double*>calloc(2*K, sizeof(double))
 		for j in prange(M):
 			p = &P[j,0]
+			g = &G[j,0]
 			for i in range(N):
-				if G[j,i] != 9:
+				if g[i] != 9:
 					h = _computeH(p, &Q[i,0], K)
-					_innerP(&Q[i,0], &p_thr[0], &p_thr[K], G[j,i], h, K)
+					_innerP(&Q[i,0], &p_thr[0], &p_thr[K], g[i], h, K)
 			_outerP(p, &p_thr[0], &p_thr[K], K)
 		free(p_thr)
 
@@ -409,14 +417,16 @@ cpdef void stepAccelP(
 		double h
 		double* p
 		double* p_thr
+		uint8_t* g
 	with nogil, parallel():
 		p_thr = <double*>calloc(2*K, sizeof(double))
 		for j in prange(M):
 			p = &P[j,0]
+			g = &G[j,0]
 			for i in range(N):
-				if G[j,i] != 9:
+				if g[i] != 9:
 					h = _computeH(p, &Q[i,0], K)
-					_innerP(&Q[i,0], &p_thr[0], &p_thr[K], G[j,i], h, K)
+					_innerP(&Q[i,0], &p_thr[0], &p_thr[K], g[i], h, K)
 			_outerAccelP(p, &P_new[j,0], &p_thr[0], &p_thr[K], K)
 		free(p_thr)
 
@@ -432,16 +442,18 @@ cpdef void stepQ(
 		double h
 		double* p
 		double* q_thr
+		uint8_t* g
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
 		q_thr = <double*>calloc(N*K, sizeof(double))
 		for j in prange(M):
 			p = &P[j,0]
+			g = &G[j,0]
 			for i in range(N):
-				if G[j,i] != 9:
+				if g[i] != 9:
 					h = _computeH(p, &Q[i,0], K)
-					_innerQ(p, &q_thr[i*K], G[j,i], h, K)
+					_innerQ(p, &q_thr[i*K], g[i], h, K)
 		
 		# omp critical
 		omp.omp_set_lock(&mutex)
@@ -466,6 +478,7 @@ cpdef void stepBatchQ(
 		double* p
 		double* q_thr
 		double* q_len
+		uint8_t* g
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
@@ -474,11 +487,12 @@ cpdef void stepBatchQ(
 		for j in prange(M):
 			l = s[j]
 			p = &P[l,0]
+			g = &G[l,0]
 			for i in range(N):
-				if G[l,i] != 9:
+				if g[i] != 9:
 					q_len[i] += 1.0
 					h = _computeH(p, &Q[i,0], K)
-					_innerQ(p, &q_thr[i*K], G[l,i], h, K)
+					_innerQ(p, &q_thr[i*K], g[i], h, K)
 		
 		# omp critical
 		omp.omp_set_lock(&mutex)

@@ -40,17 +40,19 @@ cpdef void expandGeno(
 		uint8_t[4] recode = [2, 9, 1, 0]
 		uint8_t mask = 3
 		uint8_t byte
+		uint8_t* g
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
 		Q_cnt = <double*>calloc(N, sizeof(double))
 		for j in prange(M):
 			i = 0
+			g = &G[j,0]
 			for b in range(N_b):
 				byte = B[j,b]
 				for bit in range(4):
-					G[j,i] = recode[(byte >> 2*bit) & mask]
-					if G[j,i] != 9:
+					g[i] = recode[(byte >> 2*bit) & mask]
+					if g[i] != 9:
 						Q_cnt[i] += 1.0
 					i = i + 1
 					if i == N:
@@ -74,13 +76,15 @@ cpdef void initP(
 		size_t K = P.shape[1]
 		size_t i, j, k
 		double* x
+		uint8_t* g
 	for j in prange(M):
 		x = <double*>calloc(K, sizeof(double))
+		g = &G[j,0]
 		for i in range(N):
-			if G[j,i] == 9:
+			if g[i] == 9:
 				continue
 			if y[i] > 0:
-				P[j,y[i]-1] += <double>G[j,i]
+				P[j,y[i]-1] += <double>g[i]
 				x[y[i]-1] += 1.0
 		for k in range(K):
 			if x[k] > 0.0:
@@ -142,12 +146,14 @@ cpdef void estimateFreq(
 		size_t N = G.shape[1]
 		size_t i, j
 		float c, n
+		uint8_t* g
 	for j in prange(M):
 		c = 0.0
 		n = 0.0
+		g = &G[j,0]
 		for i in range(N):
-			if G[j,i] != 9:
-				c = c + <float>G[j,i]
+			if g[i] != 9:
+				c = c + <float>g[i]
 				n = n + 1.0
 		f[j] = c/(2.0*n)
 
@@ -163,12 +169,14 @@ cpdef double loglike(
 		double res = 0.0
 		double d, h
 		double* p
+		uint8_t* g
 	for j in prange(M):
 		p = &P[j,0]
+		g = &G[j,0]
 		for i in range(N):
-			if G[j,i] != 9:
+			if g[i] != 9:
 				h = _computeH(p, &Q[i,0], K)
-				d = <double>G[j,i]
+				d = <double>g[i]
 				res += d*log(h) + (2.0-d)*log1p(-h)
 	return res
 
@@ -198,12 +206,14 @@ cpdef double sumSquare(
 		double res = 0.0
 		double d, h
 		double* p
+		uint8_t* g
 	for j in prange(M):
 		p = &P[j,0]
+		g = &G[j,0]
 		for i in range(N):
-			if G[j,i] != 9:
+			if g[i] != 9:
 				h = 2.0*_computeH(p, &Q[i,0], K)
-				d = <double>G[j,i]
+				d = <double>g[i]
 				res += (d-h)*(d-h)
 	return res
 

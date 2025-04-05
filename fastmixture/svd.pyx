@@ -23,12 +23,14 @@ cpdef void plinkChunk(
 		size_t N = X.shape[1]
 		size_t i, j, l
 		float u
+		uint8_t* g
 	for j in prange(M):
 		l = M_b+j
 		u = 2.0*f[l]
+		g = &G[l,0]
 		for i in range(N):
-			if G[l,i] != 9:
-				X[j,i] = <float>G[l,i] - u
+			if g[i] != 9:
+				X[j,i] = <float>g[i] - u
 			else:
 				X[j,i] = 0.0
 
