@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -173,8 +173,7 @@ def main():
 			ts = time()
 			print("Performing SVD and ALS.", end="", flush=True)
 			U, V = utils.randomizedSVD(G, f, args.K-1, args.chunk, args.power, rng)
-			P, Q = utils.extractFactor(U, V, f, args.K, args.als_iter, \
-				args.als_tole, rng)
+			P, Q = utils.extractFactor(U, V, f, args.K, args.als_iter, args.als_tole, rng)
 			print(f"\rExtracted factor matrices\t({time()-ts:.1f}s)")
 			del f, U, V
 		y = None
@@ -194,12 +193,12 @@ def main():
 	# Fastmixture
 	if args.projection is not None: # Projection mode
 		from fastmixture import projection
-		L, it, con = projection.fastProject(G, P, Q, Q1, Q2, Q_tmp, Q_old, q_nrm, \
-			q_bat, s, args.iter, args.tole, args.check, args.batches, rng)
+		L, it, con = projection.fastProject(G, P, Q, Q1, Q2, Q_tmp, Q_old, q_nrm, q_bat, s, args.iter, args.tole, 
+			args.check, args.batches, rng)
 	else: # Unsupervised or supervised mode
 		from fastmixture import functions
-		L, it, con = functions.fastRun(G, P, Q, P1, P2, Q1, Q2, Q_tmp, P_old, Q_old, \
-			q_nrm, q_bat, s, y, args.iter, args.tole, args.check, args.batches, rng)
+		L, it, con = functions.fastRun(G, P, Q, P1, P2, Q1, Q2, Q_tmp, P_old, Q_old, q_nrm, q_bat, s, y, args.iter, 
+			args.tole, args.check, args.batches, rng)
 
 	# Print elapsed time for estimation
 	t_tot = time()-start

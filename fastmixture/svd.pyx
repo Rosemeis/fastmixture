@@ -2,18 +2,22 @@
 cimport numpy as np
 from cython.parallel import prange
 from libc.math cimport fmaxf, fminf, sqrtf
+from libc.stdint cimport uint8_t
+
+cdef float PRO_MIN = 1e-5
+cdef float PRO_MAX = 1.0-(1e-5)
 
 ##### Randomized SVD - PCAone method #####
 # Truncate parameters to domain
-cdef inline float _project(float s) noexcept nogil:
-	cdef:
-		float min_val = 1e-5
-		float max_val = 1.0-(1e-5)
-	return fminf(fmaxf(s, min_val), max_val)
+cdef inline float _project(
+		float s
+	) noexcept nogil:
+	return fminf(fmaxf(s, PRO_MIN), PRO_MAX)
 
 # Load centered chunk from PLINK file for SVD
-cpdef void plinkChunk(const unsigned char[:,::1] G, float[:,::1] X, \
-		const float[::1] f, const size_t M_b) noexcept nogil:
+cpdef void plinkChunk(
+		const uint8_t[:,::1] G, float[:,::1] X, const float[::1] f, const size_t M_b
+	) noexcept nogil:
 	cdef:
 		size_t M = X.shape[0]
 		size_t N = X.shape[1]
@@ -29,7 +33,9 @@ cpdef void plinkChunk(const unsigned char[:,::1] G, float[:,::1] X, \
 				X[j,i] = 0.0
 
 # Root-mean square error between two Q matrices
-cpdef float rmse(const float[:,::1] A, const float[:,::1] B) noexcept nogil:
+cpdef float rmse(
+		const float[:,::1] A, const float[:,::1] B
+	) noexcept nogil:
 	cdef:
 		size_t N = A.shape[0]
 		size_t K = A.shape[1]
@@ -42,7 +48,9 @@ cpdef float rmse(const float[:,::1] A, const float[:,::1] B) noexcept nogil:
 	return sqrtf(res*s)
 
 # Map Q parameters to domain
-cpdef void map2domain(float[:,::1] Q) noexcept nogil:
+cpdef void map2domain(
+		float[:,::1] Q
+	) noexcept nogil:
 	cdef:
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]

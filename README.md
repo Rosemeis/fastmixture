@@ -1,13 +1,17 @@
-# fastmixture (v1.0.0)
+# fastmixture (v1.0.1)
 `fastmixture` is a new software for estimating ancestry proportions in unrelated individuals. It is significantly faster than previous model-based software while providing accurate and robust ancestry estimates.
 
 
 ## Table of Contents
-- [Installation](#installation)
 - [Citation](#citation)
+- [Installation](#installation)
 - [Usage](#usage)
 - [License](#license)
 - [Authors and Acknowledgements](#authors-and-acknowledgements)
+
+## Citation
+Please cite our paper in [*Peer Community Journal*](https://peercommunityjournal.org/articles/10.24072/pcjournal.503/).\
+Preprint also available on [BioRxiv](https://doi.org/10.1101/2024.07.08.602454).
 
 ## Installation 
 To run the `fastmixture` software, you have a few options depending on your environment and preference:
@@ -76,10 +80,6 @@ If you run into issues with your installation on a HPC system, it could be due t
 # uv tool run example
 uvx fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
 ```
-
-## Citation
-Please cite our paper in [*Peer Community Journal*](https://peercommunityjournal.org/articles/10.24072/pcjournal.503/).\
-Preprint also available on [BioRxiv](https://doi.org/10.1101/2024.07.08.602454).
 
 ## Usage
 `fastmixture` requires input data in binary [PLINK](https://www.cog-genomics.org/plink/1.9/input#bed) format. 

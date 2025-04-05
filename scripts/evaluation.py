@@ -43,8 +43,7 @@ if args.rmse or args.jsd:
 else:
 	assert args.bfile is not None, "No input data (--bfile)!"
 	assert args.pfile is not None, "No frequencies (--pfile)!"
-	assert (args.loglike or args.sumsquares), "No valid option chosen " + \
-		"(--loglike, --sumsquares)!"
+	assert (args.loglike or args.sumsquares), "No valid option chosen (--loglike, --sumsquares)!"
 
 # Control threads of external numerical libraries
 os.environ["MKL_NUM_THREADS"] = str(args.threads)

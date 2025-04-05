@@ -3,19 +3,23 @@ cimport numpy as np
 cimport openmp as omp
 from cython.parallel import parallel, prange
 from libc.math cimport fmax, fmin, log, log1p, sqrt
+from libc.stdint cimport uint8_t
 from libc.stdlib cimport calloc, free
+
+cdef double PRO_MIN = 1e-5
+cdef double PRO_MAX = 1.0-(1e-5)
 
 ##### fastmixture ######
 # Inline function for truncating parameters to domain
-cdef inline double _project(const double s) noexcept nogil:
-	cdef:
-		double min_val = 1e-5
-		double max_val = 1.0-(1e-5)
-	return fmin(fmax(s, min_val), max_val)
+cdef inline double _project(
+		const double s
+	) noexcept nogil:
+	return fmin(fmax(s, PRO_MIN), PRO_MAX)
 
 # Inline function for computing individual allele frequency
-cdef inline double _computeH(const double* p, const double* q, const size_t K) \
-		noexcept nogil:
+cdef inline double _computeH(
+		const double* p, const double* q, const size_t K
+	) noexcept nogil:
 	cdef:
 		size_t k
 		double h = 0.0
@@ -24,17 +28,18 @@ cdef inline double _computeH(const double* p, const double* q, const size_t K) \
 	return h
 
 # Expand data from 2-bit to 8-bit genotype matrix
-cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
-		double[::1] q_nrm) noexcept nogil:
+cpdef void expandGeno(
+		const uint8_t[:,::1] B, uint8_t[:,::1] G, double[::1] q_nrm
+	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
 		size_t N = G.shape[1]
 		size_t N_b = B.shape[1]
 		size_t i, j, b, x, bit
 		double* Q_cnt
-		unsigned char[4] recode = [2, 9, 1, 0]
-		unsigned char mask = 3
-		unsigned char byte
+		uint8_t[4] recode = [2, 9, 1, 0]
+		uint8_t mask = 3
+		uint8_t byte
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
@@ -60,8 +65,9 @@ cpdef void expandGeno(const unsigned char[:,::1] B, unsigned char[:,::1] G, \
 	omp.omp_destroy_lock(&mutex)
 
 # Initialize P in supervised mode
-cpdef void initP(const unsigned char[:,::1] G, double[:,::1] P, \
-		const unsigned char[::1] y) noexcept nogil:
+cpdef void initP(
+		const uint8_t[:,::1] G, double[:,::1] P, const uint8_t[::1] y
+	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
 		size_t N = G.shape[1]
@@ -84,7 +90,9 @@ cpdef void initP(const unsigned char[:,::1] G, double[:,::1] P, \
 		free(x)
 
 # Initialize Q in supervised mode
-cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
+cpdef void initQ(
+		double[:,::1] Q, const uint8_t[::1] y
+	) noexcept nogil:
 	cdef:
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]
@@ -94,9 +102,9 @@ cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 		if y[i] > 0:
 			for k in range(K):
 				if k == (y[i]-1):
-					Q[i,k] = 1.0-(1e-5)
+					Q[i,k] = PRO_MAX
 				else:
-					Q[i,k] = 1e-5
+					Q[i,k] = PRO_MIN
 		sumQ = 0.0
 		for k in range(K):
 			Q[i,k] = _project(Q[i,k])
@@ -105,7 +113,9 @@ cpdef void initQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 			Q[i,k] /= sumQ
 
 # Update Q in supervised mode
-cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
+cpdef void superQ(
+		double[:,::1] Q, const uint8_t[::1] y
+	) noexcept nogil:
 	cdef:
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]
@@ -116,15 +126,17 @@ cpdef void superQ(double[:,::1] Q, const unsigned char[::1] y) noexcept nogil:
 			sumQ = 0.0
 			for k in range(K):
 				if k == (y[i]-1):
-					Q[i,k] = 1.0-(1e-5)
+					Q[i,k] = PRO_MAX
 				else:
-					Q[i,k] = 1e-5
+					Q[i,k] = PRO_MIN
 				sumQ += Q[i,k]
 			for k in range(K):
 				Q[i,k] /= sumQ
 
 # Estimate minor allele frequencies
-cpdef void estimateFreq(const unsigned char[:,::1] G, float[::1] f) noexcept nogil:
+cpdef void estimateFreq(
+		const uint8_t[:,::1] G, float[::1] f
+	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
 		size_t N = G.shape[1]
@@ -140,8 +152,9 @@ cpdef void estimateFreq(const unsigned char[:,::1] G, float[::1] f) noexcept nog
 		f[j] = c/(2.0*n)
 
 # Log-likelihood
-cpdef double loglike(const unsigned char[:,::1] G, double[:,::1] P, \
-		const double[:,::1] Q) noexcept nogil:
+cpdef double loglike(
+		const uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q
+	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
 		size_t N = G.shape[1]
@@ -160,7 +173,9 @@ cpdef double loglike(const unsigned char[:,::1] G, double[:,::1] P, \
 	return res
 
 # Root-mean-square error
-cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nogil:
+cpdef double rmse(
+		const double[:,::1] Q, const double[:,::1] Q_pre
+	) noexcept nogil:
 	cdef:
 		size_t N = Q.shape[0]
 		size_t K = Q.shape[1]
@@ -172,8 +187,9 @@ cpdef double rmse(const double[:,::1] Q, const double[:,::1] Q_pre) noexcept nog
 	return sqrt(res/<double>(N*K))
 
 # Sum-of-squares used in evaluation 
-cpdef double sumSquare(const unsigned char[:,::1] G, double[:,::1] P, \
-		const double[:,::1] Q) noexcept nogil:
+cpdef double sumSquare(
+		const uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q
+	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
 		size_t N = G.shape[1]
@@ -192,7 +208,9 @@ cpdef double sumSquare(const unsigned char[:,::1] G, double[:,::1] P, \
 	return res
 
 # Kullback-Leibler divergence with average for Jensen-Shannon
-cpdef double divKL(const double[:,::1] A, const double[:,::1] B) noexcept nogil:
+cpdef double divKL(
+		const double[:,::1] A, const double[:,::1] B
+	) noexcept nogil:
 	cdef:
 		size_t N = A.shape[0]
 		size_t K = A.shape[1]
