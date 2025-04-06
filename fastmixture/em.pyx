@@ -191,6 +191,7 @@ cpdef void updateP(
 		size_t i, j, x, y
 		double h
 		double* p
+		double* q
 		double* p_thr
 		double* q_thr
 		uint8_t* g
@@ -204,8 +205,9 @@ cpdef void updateP(
 			g = &G[j,0]
 			for i in range(N):
 				if g[i] != 9:
-					h = _computeH(p, &Q[i,0], K)
-					_inner(p, &Q[i,0], &p_thr[0], &p_thr[K], &q_thr[i*K], g[i], h, K)
+					q = &Q[i,0]
+					h = _computeH(p, q, K)
+					_inner(p, q, &p_thr[0], &p_thr[K], &q_thr[i*K], g[i], h, K)
 			_outerP(p, &p_thr[0], &p_thr[K], K)
 		
 		# omp critical
@@ -229,6 +231,7 @@ cpdef void accelP(
 		size_t i, j, x, y
 		double h
 		double* p
+		double* q
 		double* p_thr
 		double* q_thr
 		uint8_t* g
@@ -242,8 +245,9 @@ cpdef void accelP(
 			g = &G[j,0]
 			for i in range(N):
 				if g[i] != 9:
-					h = _computeH(p, &Q[i,0], K)
-					_inner(p, &Q[i,0], &p_thr[0], &p_thr[K], &q_thr[i*K], g[i], h, K)
+					q = &Q[i,0]
+					h = _computeH(p, q, K)
+					_inner(p, q, &p_thr[0], &p_thr[K], &q_thr[i*K], g[i], h, K)
 			_outerAccelP(p, &P_new[j,0], &p_thr[0], &p_thr[K], K)
 		
 		# omp critical
@@ -317,6 +321,7 @@ cpdef void accelBatchP(
 		size_t i, j, l, x, y
 		double h
 		double* p
+		double* q
 		double* p_thr
 		double* q_thr
 		double* q_len
@@ -334,8 +339,9 @@ cpdef void accelBatchP(
 			for i in range(N):
 				if g[i] != 9:
 					q_len[i] += 1.0
-					h = _computeH(p, &Q[i,0], K)
-					_inner(p, &Q[i,0], &p_thr[0], &p_thr[K], &q_thr[i*K], g[i], h, K)
+					q = &Q[i,0]
+					h = _computeH(p, q, K)
+					_inner(p, q, &p_thr[0], &p_thr[K], &q_thr[i*K], g[i], h, K)
 			_outerAccelP(p, &P_new[l,0], &p_thr[0], &p_thr[K], K)
 		
 		# omp critical
@@ -391,6 +397,7 @@ cpdef void stepP(
 		size_t i, j
 		double h
 		double* p
+		double* q
 		double* p_thr
 		uint8_t* g
 	with nogil, parallel():
@@ -400,8 +407,9 @@ cpdef void stepP(
 			g = &G[j,0]
 			for i in range(N):
 				if g[i] != 9:
-					h = _computeH(p, &Q[i,0], K)
-					_innerP(&Q[i,0], &p_thr[0], &p_thr[K], g[i], h, K)
+					q = &Q[i,0]
+					h = _computeH(p, q, K)
+					_innerP(q, &p_thr[0], &p_thr[K], g[i], h, K)
 			_outerP(p, &p_thr[0], &p_thr[K], K)
 		free(p_thr)
 
@@ -416,6 +424,7 @@ cpdef void stepAccelP(
 		size_t i, j
 		double h
 		double* p
+		double* q
 		double* p_thr
 		uint8_t* g
 	with nogil, parallel():
@@ -425,8 +434,9 @@ cpdef void stepAccelP(
 			g = &G[j,0]
 			for i in range(N):
 				if g[i] != 9:
-					h = _computeH(p, &Q[i,0], K)
-					_innerP(&Q[i,0], &p_thr[0], &p_thr[K], g[i], h, K)
+					q = &Q[i,0]
+					h = _computeH(p, q, K)
+					_innerP(q, &p_thr[0], &p_thr[K], g[i], h, K)
 			_outerAccelP(p, &P_new[j,0], &p_thr[0], &p_thr[K], K)
 		free(p_thr)
 
