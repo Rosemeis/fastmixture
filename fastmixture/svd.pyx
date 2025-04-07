@@ -16,7 +16,7 @@ cdef inline float _project(
 
 # Load centered chunk from PLINK file for SVD
 cpdef void plinkChunk(
-		const uint8_t[:,::1] G, float[:,::1] X, const float[::1] f, const size_t M_b
+		uint8_t[:,::1] G, float[:,::1] X, const float[::1] f, const size_t M_b
 	) noexcept nogil:
 	cdef:
 		size_t M = X.shape[0]

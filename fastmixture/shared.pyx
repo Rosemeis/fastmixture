@@ -68,7 +68,7 @@ cpdef void expandGeno(
 
 # Initialize P in supervised mode
 cpdef void initP(
-		const uint8_t[:,::1] G, double[:,::1] P, const uint8_t[::1] y
+		uint8_t[:,::1] G, double[:,::1] P, const uint8_t[::1] y
 	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
@@ -139,7 +139,7 @@ cpdef void superQ(
 
 # Estimate minor allele frequencies
 cpdef void estimateFreq(
-		const uint8_t[:,::1] G, float[::1] f
+		uint8_t[:,::1] G, float[::1] f
 	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
@@ -159,7 +159,7 @@ cpdef void estimateFreq(
 
 # Log-likelihood
 cpdef double loglike(
-		const uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q
+		uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q
 	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
@@ -196,7 +196,7 @@ cpdef double rmse(
 
 # Sum-of-squares used in evaluation 
 cpdef double sumSquare(
-		const uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q
+		uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q
 	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]

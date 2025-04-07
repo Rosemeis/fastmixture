@@ -182,7 +182,7 @@ cdef inline double _computeBatchC(
 ### Update functions
 # Update P and Q temp arrays
 cpdef void updateP(
-		const uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q, double[:,::1] Q_tmp
+		uint8_t[:,::1] G, double[:,::1] P, double[:,::1] Q, double[:,::1] Q_tmp
 	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
@@ -222,7 +222,7 @@ cpdef void updateP(
 
 # Update P in acceleration
 cpdef void accelP(
-		const uint8_t[:,::1] G, double[:,::1] P, double[:,::1] P_new, const double[:,::1] Q, double[:,::1] Q_tmp
+		uint8_t[:,::1] G, double[:,::1] P, double[:,::1] P_new, double[:,::1] Q, double[:,::1] Q_tmp
 	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
@@ -311,7 +311,7 @@ cpdef void alphaQ(
 ### Batch functions
 # Update P in batch acceleration
 cpdef void accelBatchP(
-		const uint8_t[:,::1] G, double[:,::1] P, double[:,::1] P_new, const double[:,::1] Q, double[:,::1] Q_tmp, 
+		uint8_t[:,::1] G, double[:,::1] P, double[:,::1] P_new, double[:,::1] Q, double[:,::1] Q_tmp, 
 		double[::1] q_bat, const uint32_t[::1] s
 	) noexcept nogil:
 	cdef:
@@ -388,7 +388,7 @@ cpdef void accelBatchQ(
 ### Safety steps
 # Update P
 cpdef void stepP(
-		const uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q
+		uint8_t[:,::1] G, double[:,::1] P, double[:,::1] Q
 	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
@@ -415,7 +415,7 @@ cpdef void stepP(
 
 # Update accelerated P
 cpdef void stepAccelP(
-		const uint8_t[:,::1] G, double[:,::1] P, double[:,::1] P_new, const double[:,::1] Q
+		uint8_t[:,::1] G, double[:,::1] P, double[:,::1] P_new, double[:,::1] Q
 	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
@@ -442,7 +442,7 @@ cpdef void stepAccelP(
 
 # Update Q temp arrays
 cpdef void stepQ(
-		const uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q, double[:,::1] Q_tmp
+		uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q, double[:,::1] Q_tmp
 	) noexcept nogil:
 	cdef:
 		size_t M = G.shape[0]
@@ -476,7 +476,7 @@ cpdef void stepQ(
 
 # Update Q temp arrays in batch acceleration
 cpdef void stepBatchQ(
-		const uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q, double[:,::1] Q_tmp, double[::1] q_bat,
+		uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q, double[:,::1] Q_tmp, double[::1] q_bat,
 		const uint32_t[::1] s
 	) noexcept nogil:
 	cdef:
