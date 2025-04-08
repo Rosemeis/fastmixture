@@ -31,7 +31,7 @@ extensions = [
 
 setup(
 	name="fastmixture",
-	version="1.0.1",
+	version="1.0.2",
 	author="Jonas Meisner",
 	author_email="meisnerucph@gmail.com",
 	description="Fast Ancestry Estimation",

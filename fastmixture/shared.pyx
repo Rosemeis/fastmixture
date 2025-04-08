@@ -3,7 +3,7 @@ cimport numpy as np
 cimport openmp as omp
 from cython.parallel import parallel, prange
 from libc.math cimport fmax, fmin, log, log1p, sqrt
-from libc.stdint cimport uint8_t
+from libc.stdint cimport uint8_t, uint32_t
 from libc.stdlib cimport calloc, free
 
 cdef double PRO_MIN = 1e-5
@@ -18,7 +18,7 @@ cdef inline double _project(
 
 # Inline function for computing individual allele frequency
 cdef inline double _computeH(
-		const double* p, const double* q, const size_t K
+		const double* p, const double* q, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		size_t k
@@ -32,15 +32,15 @@ cpdef void expandGeno(
 		const uint8_t[:,::1] B, uint8_t[:,::1] G, double[::1] q_nrm
 	) noexcept nogil:
 	cdef:
-		size_t M = G.shape[0]
-		size_t N = G.shape[1]
-		size_t N_b = B.shape[1]
-		size_t i, j, b, x, bit
-		double* Q_cnt
 		uint8_t[4] recode = [2, 9, 1, 0]
 		uint8_t mask = 3
 		uint8_t byte
 		uint8_t* g
+		uint32_t M = G.shape[0]
+		uint32_t N = G.shape[1]
+		uint32_t N_b = B.shape[1]
+		double* Q_cnt
+		size_t i, j, b, x, bit
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
@@ -71,12 +71,12 @@ cpdef void initP(
 		uint8_t[:,::1] G, double[:,::1] P, const uint8_t[::1] y
 	) noexcept nogil:
 	cdef:
-		size_t M = G.shape[0]
-		size_t N = G.shape[1]
-		size_t K = P.shape[1]
-		size_t i, j, k
-		double* x
 		uint8_t* g
+		uint32_t M = G.shape[0]
+		uint32_t N = G.shape[1]
+		uint32_t K = P.shape[1]
+		double* x
+		size_t i, j, k
 	for j in prange(M):
 		x = <double*>calloc(K, sizeof(double))
 		g = &G[j,0]
@@ -84,8 +84,8 @@ cpdef void initP(
 			if g[i] == 9:
 				continue
 			if y[i] > 0:
-				P[j,y[i]-1] += <double>g[i]
-				x[y[i]-1] += 1.0
+				x[y[i] - 1] += 1.0
+				P[j,y[i] - 1] += <double>g[i]
 		for k in range(K):
 			if x[k] > 0.0:
 				P[j,k] /= (2.0*x[k])
@@ -98,14 +98,14 @@ cpdef void initQ(
 		double[:,::1] Q, const uint8_t[::1] y
 	) noexcept nogil:
 	cdef:
-		size_t N = Q.shape[0]
-		size_t K = Q.shape[1]
-		size_t i, k
+		uint32_t N = Q.shape[0]
+		uint32_t K = Q.shape[1]
 		double sumQ
+		size_t i, k
 	for i in range(N):
 		if y[i] > 0:
 			for k in range(K):
-				if k == (y[i]-1):
+				if k == (y[i] - 1):
 					Q[i,k] = PRO_MAX
 				else:
 					Q[i,k] = PRO_MIN
@@ -121,15 +121,15 @@ cpdef void superQ(
 		double[:,::1] Q, const uint8_t[::1] y
 	) noexcept nogil:
 	cdef:
-		size_t N = Q.shape[0]
-		size_t K = Q.shape[1]
-		size_t i, k
+		uint32_t N = Q.shape[0]
+		uint32_t K = Q.shape[1]
 		double sumQ
+		size_t i, k
 	for i in range(N):
 		if y[i] > 0:
 			sumQ = 0.0
 			for k in range(K):
-				if k == (y[i]-1):
+				if k == (y[i] - 1):
 					Q[i,k] = PRO_MAX
 				else:
 					Q[i,k] = PRO_MIN
@@ -142,11 +142,11 @@ cpdef void estimateFreq(
 		uint8_t[:,::1] G, float[::1] f
 	) noexcept nogil:
 	cdef:
-		size_t M = G.shape[0]
-		size_t N = G.shape[1]
-		size_t i, j
-		float c, n
 		uint8_t* g
+		uint32_t M = G.shape[0]
+		uint32_t N = G.shape[1]
+		float c, n
+		size_t i, j
 	for j in prange(M):
 		c = 0.0
 		n = 0.0
@@ -162,14 +162,14 @@ cpdef double loglike(
 		uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q
 	) noexcept nogil:
 	cdef:
-		size_t M = G.shape[0]
-		size_t N = G.shape[1]
-		size_t K = Q.shape[1]
-		size_t i, j
+		uint8_t* g
+		uint32_t M = G.shape[0]
+		uint32_t N = G.shape[1]
+		uint32_t K = Q.shape[1]
 		double res = 0.0
 		double d, h
 		double* p
-		uint8_t* g
+		size_t i, j
 	for j in prange(M):
 		p = &P[j,0]
 		g = &G[j,0]
@@ -177,7 +177,7 @@ cpdef double loglike(
 			if g[i] != 9:
 				h = _computeH(p, &Q[i,0], K)
 				d = <double>g[i]
-				res += d*log(h) + (2.0-d)*log1p(-h)
+				res += d*log(h) + (2.0 - d)*log1p(-h)
 	return res
 
 # Root-mean-square error
@@ -185,10 +185,10 @@ cpdef double rmse(
 		const double[:,::1] Q, const double[:,::1] Q_pre
 	) noexcept nogil:
 	cdef:
-		size_t N = Q.shape[0]
-		size_t K = Q.shape[1]
-		size_t i, k
+		uint32_t N = Q.shape[0]
+		uint32_t K = Q.shape[1]
 		double res = 0.0
+		size_t i, k
 	for i in range(N):
 		for k in range(K):
 			res += (Q[i,k] - Q_pre[i,k])*(Q[i,k] - Q_pre[i,k])
@@ -199,14 +199,14 @@ cpdef double sumSquare(
 		uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q
 	) noexcept nogil:
 	cdef:
-		size_t M = G.shape[0]
-		size_t N = G.shape[1]
-		size_t K = Q.shape[1]
-		size_t i, j
+		uint8_t* g
+		uint32_t M = G.shape[0]
+		uint32_t N = G.shape[1]
+		uint32_t K = Q.shape[1]
 		double res = 0.0
 		double d, h
 		double* p
-		uint8_t* g
+		size_t i, j
 	for j in prange(M):
 		p = &P[j,0]
 		g = &G[j,0]
@@ -214,7 +214,7 @@ cpdef double sumSquare(
 			if g[i] != 9:
 				h = 2.0*_computeH(p, &Q[i,0], K)
 				d = <double>g[i]
-				res += (d-h)*(d-h)
+				res += (d - h)*(d - h)
 	return res
 
 # Kullback-Leibler divergence with average for Jensen-Shannon
@@ -222,12 +222,12 @@ cpdef double divKL(
 		const double[:,::1] A, const double[:,::1] B
 	) noexcept nogil:
 	cdef:
-		size_t N = A.shape[0]
-		size_t K = A.shape[1]
-		size_t i, k
+		uint32_t N = A.shape[0]
+		uint32_t K = A.shape[1]
 		double eps = 1e-10
 		double d = 0.0
 		double a
+		size_t i, k
 	for i in range(N):
 		for k in range(K):
 			a = (A[i,k] + B[i,k])*0.5

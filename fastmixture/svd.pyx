@@ -2,7 +2,7 @@
 cimport numpy as np
 from cython.parallel import prange
 from libc.math cimport fmaxf, fminf, sqrtf
-from libc.stdint cimport uint8_t
+from libc.stdint cimport uint8_t, uint32_t
 
 cdef float PRO_MIN = 1e-5
 cdef float PRO_MAX = 1.0-(1e-5)
@@ -16,16 +16,16 @@ cdef inline float _project(
 
 # Load centered chunk from PLINK file for SVD
 cpdef void plinkChunk(
-		uint8_t[:,::1] G, float[:,::1] X, const float[::1] f, const size_t M_b
+		uint8_t[:,::1] G, float[:,::1] X, const float[::1] f, const uint32_t M_b
 	) noexcept nogil:
 	cdef:
-		size_t M = X.shape[0]
-		size_t N = X.shape[1]
-		size_t i, j, l
-		float u
 		uint8_t* g
+		uint32_t M = X.shape[0]
+		uint32_t N = X.shape[1]
+		float u
+		size_t i, j, l
 	for j in prange(M):
-		l = M_b+j
+		l = M_b + j
 		u = 2.0*f[l]
 		g = &G[l,0]
 		for i in range(N):
@@ -39,11 +39,11 @@ cpdef float rmse(
 		const float[:,::1] A, const float[:,::1] B
 	) noexcept nogil:
 	cdef:
-		size_t N = A.shape[0]
-		size_t K = A.shape[1]
-		size_t i, k
+		uint32_t N = A.shape[0]
+		uint32_t K = A.shape[1]
 		float s = 1.0/<float>(N*K)
 		float res = 0.0
+		size_t i, k
 	for i in range(N):
 		for k in range(K):
 			res += (A[i,k] - B[i,k])*(A[i,k] - B[i,k])
@@ -54,10 +54,10 @@ cpdef void map2domain(
 		float[:,::1] Q
 	) noexcept nogil:
 	cdef:
-		size_t N = Q.shape[0]
-		size_t K = Q.shape[1]
-		size_t i, k
+		uint32_t N = Q.shape[0]
+		uint32_t K = Q.shape[1]
 		float sumQ
+		size_t i, k
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):

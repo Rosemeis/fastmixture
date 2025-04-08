@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")

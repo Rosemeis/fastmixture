@@ -21,7 +21,7 @@ cdef inline double _project(
 
 # Estimate individual allele frequencies
 cdef inline double _computeH(
-		const double* p, const double* q, const size_t K
+		const double* p, const double* q, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		size_t k
@@ -33,13 +33,13 @@ cdef inline double _computeH(
 # Inner loop updates for temp P and Q
 cdef inline void _inner(
 		const double* p, const double* q, double* p_a, double* p_b, double* q_thr, const uint8_t g, const double h, 
-		const size_t K
+		const uint32_t K
 	) noexcept nogil:
 	cdef:
 		size_t k
 		double d = <double>g
 		double a = d/h
-		double b = (2.0-d)/(1.0-h)
+		double b = (2.0 - d)/(1.0 - h)
 	for k in range(K):
 		p_a[k] += q[k]*a
 		p_b[k] += q[k]*b
@@ -47,32 +47,32 @@ cdef inline void _inner(
 
 # Inner loop update for temp P
 cdef inline void _innerP(
-		const double* q, double* p_a, double* p_b, const uint8_t g, const double h, const size_t K
+		const double* q, double* p_a, double* p_b, const uint8_t g, const double h, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		size_t k
 		double d = <double>g
 		double a = d/h
-		double b = (2.0-d)/(1.0-h)
+		double b = (2.0 - d)/(1.0 - h)
 	for k in range(K):
 		p_a[k] += q[k]*a
 		p_b[k] += q[k]*b
 
 # Inner loop update for temp Q
 cdef inline void _innerQ(
-		const double* p, double* q_thr, const uint8_t g, const double h, const size_t K
+		const double* p, double* q_thr, const uint8_t g, const double h, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		size_t k
 		double d = <double>g
 		double a = d/h
-		double b = (2.0-d)/(1.0-h)
+		double b = (2.0 - d)/(1.0 - h)
 	for k in range(K):
 		q_thr[k] += p[k]*(a - b) + b
 
 # Outer loop update for P
 cdef inline void _outerP(
-		double* p, double* p_a, double* p_b, const size_t K
+		double* p, double* p_a, double* p_b, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		size_t k
@@ -83,7 +83,7 @@ cdef inline void _outerP(
 
 # Outer loop accelerated update for P
 cdef inline void _outerAccelP(
-		const double* p, double* p_n, double* p_a, double* p_b, const size_t K
+		const double* p, double* p_n, double* p_a, double* p_b, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		size_t k
@@ -94,7 +94,7 @@ cdef inline void _outerAccelP(
 
 # Outer loop update for Q
 cdef inline void _outerQ(
-		double* q, double* q_tmp, const double a, const size_t K
+		double* q, double* q_tmp, const double a, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		size_t k
@@ -108,7 +108,7 @@ cdef inline void _outerQ(
 
 # Outer loop accelerated update for Q
 cdef inline void _outerAccelQ(
-		const double* q, double* q_new, double* q_tmp, const double a, const size_t K
+		const double* q, double* q_new, double* q_tmp, const double a, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		size_t k
@@ -122,7 +122,7 @@ cdef inline void _outerAccelQ(
 
 # Estimate QN factor
 cdef inline double _computeC(
-		const double* x0, const double* x1, const double* x2, const size_t I
+		const double* x0, const double* x1, const double* x2, const uint32_t I
 	) noexcept nogil:
 	cdef:
 		size_t i
@@ -138,7 +138,7 @@ cdef inline double _computeC(
 
 # Alpha update for P
 cdef inline void _computeP(
-		double* p0, const double* p1, const double* p2, const double c1, const size_t I
+		double* p0, const double* p1, const double* p2, const double c1, const uint32_t I
 	) noexcept nogil:
 	cdef:
 		size_t i
@@ -148,7 +148,7 @@ cdef inline void _computeP(
 
 # Alpha update for Q
 cdef inline void _computeQ(
-		double* q0, const double* q1, const double* q2, const double c1, const double c2, const size_t K
+		double* q0, const double* q1, const double* q2, const double c1, const double c2, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		size_t k
@@ -161,7 +161,7 @@ cdef inline void _computeQ(
 
 # Estimate QN factor for batch P
 cdef inline double _computeBatchC(
-		const double* p0, const double* p1, const double* p2, const uint32_t* s, const size_t I, const size_t J
+		const double* p0, const double* p1, const double* p2, const uint32_t* s, const uint32_t I, const uint32_t J
 	) noexcept nogil:
 	cdef:
 		size_t i, j, k, l
@@ -185,16 +185,16 @@ cpdef void updateP(
 		uint8_t[:,::1] G, double[:,::1] P, double[:,::1] Q, double[:,::1] Q_tmp
 	) noexcept nogil:
 	cdef:
-		size_t M = G.shape[0]
-		size_t N = G.shape[1]
-		size_t K = Q.shape[1]
-		size_t i, j, x, y
+		uint8_t* g
+		uint32_t M = G.shape[0]
+		uint32_t N = G.shape[1]
+		uint32_t K = Q.shape[1]
 		double h
 		double* p
 		double* q
 		double* p_thr
 		double* q_thr
-		uint8_t* g
+		size_t i, j, x, y
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
@@ -225,16 +225,16 @@ cpdef void accelP(
 		uint8_t[:,::1] G, double[:,::1] P, double[:,::1] P_new, double[:,::1] Q, double[:,::1] Q_tmp
 	) noexcept nogil:
 	cdef:
-		size_t M = G.shape[0]
-		size_t N = G.shape[1]
-		size_t K = Q.shape[1]
-		size_t i, j, x, y
+		uint8_t* g
+		uint32_t M = G.shape[0]
+		uint32_t N = G.shape[1]
+		uint32_t K = Q.shape[1]
 		double h
 		double* p
 		double* q
 		double* p_thr
 		double* q_thr
-		uint8_t* g
+		size_t i, j, x, y
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
@@ -265,8 +265,8 @@ cpdef void alphaP(
 		double[:,::1] P, const double[:,::1] P1, const double[:,::1] P2
 	) noexcept nogil:
 	cdef:
-		size_t M = P.shape[0]
-		size_t K = P.shape[1]
+		uint32_t M = P.shape[0]
+		uint32_t K = P.shape[1]
 		double c
 	c = _computeC(&P[0,0], &P1[0,0], &P2[0,0], M*K)
 	_computeP(&P[0,0], &P1[0,0], &P2[0,0], c, M*K)
@@ -276,8 +276,8 @@ cpdef void updateQ(
 		double[:,::1] Q, double[:,::1] Q_tmp, double[::1] q_nrm
 	) noexcept nogil:
 	cdef:
-		size_t N = Q.shape[0]
-		size_t K = Q.shape[1]
+		uint32_t N = Q.shape[0]
+		uint32_t K = Q.shape[1]
 		size_t i
 	for i in range(N):
 		_outerQ(&Q[i,0], &Q_tmp[i,0], 1.0/(2.0*q_nrm[i]), K)
@@ -287,8 +287,8 @@ cpdef void accelQ(
 		const double[:,::1] Q, double[:,::1] Q_new, double[:,::1] Q_tmp, double[::1] q_nrm
 	) noexcept nogil:
 	cdef:
-		size_t N = Q.shape[0]
-		size_t K = Q.shape[1]
+		uint32_t N = Q.shape[0]
+		uint32_t K = Q.shape[1]
 		size_t i
 	for i in range(N):
 		_outerAccelQ(&Q[i,0], &Q_new[i,0], &Q_tmp[i,0], 1.0/(2.0*q_nrm[i]), K)
@@ -298,8 +298,8 @@ cpdef void alphaQ(
 		double[:,::1] Q, const double[:,::1] Q1, const double[:,::1] Q2
 	) noexcept nogil:
 	cdef:
-		size_t N = Q.shape[0]
-		size_t K = Q.shape[1]
+		uint32_t N = Q.shape[0]
+		uint32_t K = Q.shape[1]
 		size_t i
 		double c1, c2
 	c1 = _computeC(&Q[0,0], &Q1[0,0], &Q2[0,0], N*K)
@@ -315,17 +315,17 @@ cpdef void accelBatchP(
 		double[::1] q_bat, const uint32_t[::1] s
 	) noexcept nogil:
 	cdef:
-		size_t M = s.shape[0]
-		size_t N = G.shape[1]
-		size_t K = Q.shape[1]
-		size_t i, j, l, x, y
+		uint8_t* g
+		uint32_t M = s.shape[0]
+		uint32_t N = G.shape[1]
+		uint32_t K = Q.shape[1]
 		double h
 		double* p
 		double* q
 		double* p_thr
 		double* q_thr
 		double* q_len
-		uint8_t* g
+		size_t i, j, l, x, y
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
@@ -361,10 +361,10 @@ cpdef void alphaBatchP(
 		double[:,::1] P, const double[:,::1] P1, const double[:,::1] P2, const uint32_t[::1] s
 	) noexcept nogil:
 	cdef:
-		size_t M = s.shape[0]
-		size_t K = P.shape[1]
-		size_t j, k, l
+		uint32_t M = s.shape[0]
+		uint32_t K = P.shape[1]
 		double c1, c2
+		size_t j, k, l
 	c1 = _computeBatchC(&P[0,0], &P1[0,0], &P2[0,0], &s[0], M, K)
 	c2 = 1.0 - c1
 	for j in prange(M):
@@ -391,15 +391,15 @@ cpdef void stepP(
 		uint8_t[:,::1] G, double[:,::1] P, double[:,::1] Q
 	) noexcept nogil:
 	cdef:
-		size_t M = G.shape[0]
-		size_t N = G.shape[1]
-		size_t K = Q.shape[1]
-		size_t i, j
+		uint8_t* g
+		uint32_t M = G.shape[0]
+		uint32_t N = G.shape[1]
+		uint32_t K = Q.shape[1]
 		double h
 		double* p
 		double* q
 		double* p_thr
-		uint8_t* g
+		size_t i, j
 	with nogil, parallel():
 		p_thr = <double*>calloc(2*K, sizeof(double))
 		for j in prange(M):
@@ -418,15 +418,15 @@ cpdef void stepAccelP(
 		uint8_t[:,::1] G, double[:,::1] P, double[:,::1] P_new, double[:,::1] Q
 	) noexcept nogil:
 	cdef:
-		size_t M = G.shape[0]
-		size_t N = G.shape[1]
-		size_t K = Q.shape[1]
-		size_t i, j
+		uint8_t* g
+		uint32_t M = G.shape[0]
+		uint32_t N = G.shape[1]
+		uint32_t K = Q.shape[1]
 		double h
 		double* p
 		double* q
 		double* p_thr
-		uint8_t* g
+		size_t i, j
 	with nogil, parallel():
 		p_thr = <double*>calloc(2*K, sizeof(double))
 		for j in prange(M):
@@ -445,14 +445,14 @@ cpdef void stepQ(
 		uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q, double[:,::1] Q_tmp
 	) noexcept nogil:
 	cdef:
-		size_t M = G.shape[0]
-		size_t N = G.shape[1]
-		size_t K = Q.shape[1]
-		size_t i, j, x, y
+		uint8_t* g
+		uint32_t M = G.shape[0]
+		uint32_t N = G.shape[1]
+		uint32_t K = Q.shape[1]
 		double h
 		double* p
 		double* q_thr
-		uint8_t* g
+		size_t i, j, x, y
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
@@ -480,15 +480,15 @@ cpdef void stepBatchQ(
 		const uint32_t[::1] s
 	) noexcept nogil:
 	cdef:
-		size_t M = s.shape[0]
-		size_t N = G.shape[1]
-		size_t K = Q.shape[1]
-		size_t i, j, l, x, y
+		uint8_t* g
+		uint32_t M = s.shape[0]
+		uint32_t N = G.shape[1]
+		uint32_t K = Q.shape[1]
 		double h
 		double* p
 		double* q_thr
 		double* q_len
-		uint8_t* g
+		size_t i, j, l, x, y
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
