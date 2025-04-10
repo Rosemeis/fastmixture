@@ -377,8 +377,8 @@ cpdef void accelBatchQ(
 		const double[:,::1] Q, double[:,::1] Q_new, double[:,::1] Q_tmp, double[::1] q_bat
 	) noexcept nogil:
 	cdef:
-		size_t N = Q.shape[0]
-		size_t K = Q.shape[1]
+		uint32_t N = Q.shape[0]
+		uint32_t K = Q.shape[1]
 		size_t i
 	for i in range(N):
 		_outerAccelQ(&Q[i,0], &Q_new[i,0], &Q_tmp[i,0], 1.0/(2.0*q_bat[i]), K)
