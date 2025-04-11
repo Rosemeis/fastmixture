@@ -161,19 +161,18 @@ cdef inline void _computeQ(
 
 # Estimate QN factor for batch P
 cdef inline double _computeBatchC(
-		const double* p0, const double* p1, const double* p2, const uint32_t* s, const uint32_t I, const uint32_t J
+		const double* p0, const double* p1, const double* p2, const uint32_t* s, const uint32_t M, const uint32_t K
 	) noexcept nogil:
 	cdef:
-		size_t i, j, k, l
+		size_t j, k, l
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double u, v
-	for i in prange(I):
-		l = s[i]
-		for j in range(J):
-			k = l*J + j
-			u = p1[k] - p0[k]
-			v = p2[k] - p1[k] - u
+	for j in prange(M):
+		l = <size_t>(s[j]*K)
+		for k in range(K):
+			u = p1[l+k] - p0[l+k]
+			v = p2[l+k] - p1[l+k] - u
 			sum1 += u*u
 			sum2 += u*v
 	return fmin(fmax(-(sum1/sum2), ACC_MIN), ACC_MAX)
@@ -333,7 +332,7 @@ cpdef void accelBatchP(
 		q_thr = <double*>calloc(N*K, sizeof(double))
 		q_len = <double*>calloc(N, sizeof(double))
 		for j in prange(M):
-			l = s[j]
+			l = <size_t>s[j]
 			p = &P[l,0]
 			g = &G[l,0]
 			for i in range(N):
@@ -368,7 +367,7 @@ cpdef void alphaBatchP(
 	c1 = _computeBatchC(&P[0,0], &P1[0,0], &P2[0,0], &s[0], M, K)
 	c2 = 1.0 - c1
 	for j in prange(M):
-		l = s[j]
+		l = <size_t>s[j]
 		for k in range(K):
 			P[l,k] = _project(c2*P1[l,k] + c1*P2[l,k])
 
@@ -495,7 +494,7 @@ cpdef void stepBatchQ(
 		q_thr = <double*>calloc(N*K, sizeof(double))
 		q_len = <double*>calloc(N, sizeof(double))
 		for j in prange(M):
-			l = s[j]
+			l = <size_t>s[j]
 			p = &P[l,0]
 			g = &G[l,0]
 			for i in range(N):

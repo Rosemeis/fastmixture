@@ -16,7 +16,7 @@ cdef inline float _project(
 
 # Load centered chunk from PLINK file for SVD
 cpdef void plinkChunk(
-		uint8_t[:,::1] G, float[:,::1] X, const float[::1] f, const uint32_t M_b
+		uint8_t[:,::1] G, float[:,::1] X, const float[::1] f, const uint32_t m
 	) noexcept nogil:
 	cdef:
 		uint8_t* g
@@ -25,7 +25,7 @@ cpdef void plinkChunk(
 		float u
 		size_t i, j, l
 	for j in prange(M):
-		l = M_b + j
+		l = m + j
 		u = 2.0*f[l]
 		g = &G[l,0]
 		for i in range(N):
