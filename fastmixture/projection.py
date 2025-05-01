@@ -20,13 +20,13 @@ def quasi(G, P, Q0, Q_tmp, Q1, Q2, q_nrm):
 	em.alphaQ(Q0, Q1, Q2)
 
 # Mini-batch QN update
-def batQuasi(G, P, Q0, Q_tmp, Q1, Q2, q_bat, s):
+def batQuasi(G, P, Q0, Q_tmp, Q1, Q2, q_bat, s_bat):
 	# 1st EM step
-	em.stepBatchQ(G, P, Q0, Q_tmp, q_bat, s)
+	em.stepBatchQ(G, P, Q0, Q_tmp, q_bat, s_bat)
 	em.accelBatchQ(Q0, Q1, Q_tmp, q_bat)
 
 	# 2nd EM step
-	em.stepBatchQ(G, P, Q1, Q_tmp, q_bat, s)
+	em.stepBatchQ(G, P, Q1, Q_tmp, q_bat, s_bat)
 	em.accelBatchQ(Q1, Q2, Q_tmp, q_bat)
 
 	# Batch acceleration update
@@ -39,17 +39,25 @@ def steps(G, P, Q, Q_tmp, q_nrm):
 
 
 ### fastmixture run
-def fastProject(G, P, Q, Q1, Q2, Q_tmp, Q_old, q_nrm, q_bat, s, iter, tole, check, batches, rng):
+def fastProject(G, P, Q, q_nrm, iter, tole, check, batches, rng):
 	# Estimate initial log-likelihood
 	L_old = shared.loglike(G, P, Q)
 	print(f"Initial log-like: {L_old:.1f}")
 
 	# Parameters for stochastic EM
-	M = G.shape[0]
+	M, N = G.shape
 	safety = False
 	converged = False
 	L_bat = L_pre = L_old
 	M_bat = ceil(M/batches)
+
+	# Set up containers for EM algorithm
+	Q1 = np.zeros_like(Q)
+	Q2 = np.zeros_like(Q)
+	Q_old = np.copy(Q)
+	Q_tmp = np.zeros_like(Q)
+	q_bat = np.zeros(N)
+	s_var = np.arange(M, dtype=np.uint32)
 
 	# Accelerated priming iteration
 	ts = time()
@@ -64,9 +72,9 @@ def fastProject(G, P, Q, Q1, Q2, Q_tmp, Q_old, q_nrm, q_bat, s, iter, tole, chec
 	print(f"Using {batches} mini-batches.")
 	for it in np.arange(iter):
 		if batches > 1: # Quasi-Newton mini-batch updates
-			rng.shuffle(s) # Shuffle SNP order
+			rng.shuffle(s_var) # Shuffle SNP order
 			for b in np.arange(batches):
-				s_bat = s[(b*M_bat):min((b+1)*M_bat, M)]
+				s_bat = s_var[(b*M_bat):min((b+1)*M_bat, M)]
 				batQuasi(G, P, Q, Q_tmp, Q1, Q2, q_bat, s_bat)
 
 			# Full updates

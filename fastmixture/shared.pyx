@@ -10,19 +10,19 @@ cdef double PRO_MIN = 1e-5
 cdef double PRO_MAX = 1.0-(1e-5)
 
 ##### fastmixture ######
-# Inline function for truncating parameters to domain
+# Truncate parameters to domain
 cdef inline double _project(
-		const double s
+		const double a
 	) noexcept nogil:
-	return fmin(fmax(s, PRO_MIN), PRO_MAX)
+	return fmin(fmax(a, PRO_MIN), PRO_MAX)
 
-# Inline function for computing individual allele frequency
+# Compute individual allele frequency
 cdef inline double _computeH(
 		const double* p, const double* q, const uint32_t K
 	) noexcept nogil:
 	cdef:
-		size_t k
 		double h = 0.0
+		size_t k
 	for k in range(K):
 		h += p[k]*q[k]
 	return h
@@ -84,8 +84,8 @@ cpdef void initP(
 			if g[i] == 9:
 				continue
 			if y[i] > 0:
-				x[y[i] - 1] += 1.0
-				P[j,y[i] - 1] += <double>g[i]
+				x[y[i]-1] += 1.0
+				P[j,y[i]-1] += <double>g[i]
 		for k in range(K):
 			if x[k] > 0.0:
 				P[j,k] /= (2.0*x[k])
@@ -105,7 +105,7 @@ cpdef void initQ(
 	for i in range(N):
 		if y[i] > 0:
 			for k in range(K):
-				if k == (y[i] - 1):
+				if k == (y[i]-1):
 					Q[i,k] = PRO_MAX
 				else:
 					Q[i,k] = PRO_MIN
@@ -129,7 +129,7 @@ cpdef void superQ(
 		if y[i] > 0:
 			sumQ = 0.0
 			for k in range(K):
-				if k == (y[i] - 1):
+				if k == (y[i]-1):
 					Q[i,k] = PRO_MAX
 				else:
 					Q[i,k] = PRO_MIN
@@ -189,7 +189,7 @@ cpdef double rmse(
 		uint32_t K = Q.shape[1]
 		double res = 0.0
 		size_t i, k
-	for i in range(N):
+	for i in prange(N):
 		for k in range(K):
 			res += (Q[i,k] - Q_pre[i,k])*(Q[i,k] - Q_pre[i,k])
 	return sqrt(res/<double>(N*K))

@@ -87,17 +87,28 @@ def safQuasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, q_nrm, y):
 
 
 ### fastmixture run
-def fastRun(G, P, Q, P1, P2, Q1, Q2, Q_tmp, P_old, Q_old, q_nrm, q_bat, s, y, iter, tole, check, batches, rng):
+def fastRun(G, P, Q, q_nrm, y, iter, tole, check, batches, rng):
 	# Estimate initial log-likelihood
 	L_old = shared.loglike(G, P, Q)
 	print(f"Initial log-like: {L_old:.1f}")
 
 	# Parameters for stochastic EM
-	M = G.shape[0]
+	M, N = G.shape
 	safety = False
 	converged = False
 	L_bat = L_pre = L_old
 	M_bat = ceil(M/batches)
+
+	# Set up containers for EM algorithm
+	P1 = np.zeros_like(P)
+	P2 = np.zeros_like(P)
+	Q1 = np.zeros_like(Q)
+	Q2 = np.zeros_like(Q)
+	P_old = np.copy(P)
+	Q_old = np.copy(Q)
+	Q_tmp = np.zeros_like(Q)
+	q_bat = np.zeros(N)
+	s_var = np.arange(M, dtype=np.uint32)
 
 	# Accelerated priming iteration
 	ts = time()
@@ -112,9 +123,9 @@ def fastRun(G, P, Q, P1, P2, Q1, Q2, Q_tmp, P_old, Q_old, q_nrm, q_bat, s, y, it
 	print(f"Using {batches} mini-batches.")
 	for it in np.arange(iter):
 		if batches > 1: # Quasi-Newton mini-batch updates
-			rng.shuffle(s) # Shuffle SNP order
+			rng.shuffle(s_var) # Shuffle SNP order
 			for b in np.arange(batches):
-				s_bat = s[(b*M_bat):min((b+1)*M_bat, M)]
+				s_bat = s_var[(b*M_bat):min((b+1)*M_bat, M)]
 				batQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_bat, s_bat, y)
 
 			# Full updates

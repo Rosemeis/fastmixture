@@ -15,60 +15,60 @@ cdef double ACC_MAX = 256.0
 ### Inline functions
 # Truncate parameters to domain
 cdef inline double _project(
-		const double s
+		const double a
 	) noexcept nogil:
-	return fmin(fmax(s, PRO_MIN), PRO_MAX)
+	return fmin(fmax(a, PRO_MIN), PRO_MAX)
 
 # Estimate individual allele frequencies
 cdef inline double _computeH(
 		const double* p, const double* q, const uint32_t K
 	) noexcept nogil:
 	cdef:
-		size_t k
 		double h = 0.0
+		size_t k
 	for k in range(K):
 		h += p[k]*q[k]
 	return h
 
 # Inner loop updates for temp P and Q
 cdef inline void _inner(
-		const double* p, const double* q, double* p_a, double* p_b, double* q_thr, const uint8_t g, const double h, 
+		const double* p, const double* q, double* p_a, double* p_b, double* q_t, const uint8_t g, const double h, 
 		const uint32_t K
 	) noexcept nogil:
 	cdef:
-		size_t k
 		double d = <double>g
 		double a = d/h
 		double b = (2.0 - d)/(1.0 - h)
+		size_t k
 	for k in range(K):
 		p_a[k] += q[k]*a
 		p_b[k] += q[k]*b
-		q_thr[k] += p[k]*(a - b) + b
+		q_t[k] += p[k]*(a - b) + b
 
 # Inner loop update for temp P
 cdef inline void _innerP(
 		const double* q, double* p_a, double* p_b, const uint8_t g, const double h, const uint32_t K
 	) noexcept nogil:
 	cdef:
-		size_t k
 		double d = <double>g
 		double a = d/h
 		double b = (2.0 - d)/(1.0 - h)
+		size_t k
 	for k in range(K):
 		p_a[k] += q[k]*a
 		p_b[k] += q[k]*b
 
 # Inner loop update for temp Q
 cdef inline void _innerQ(
-		const double* p, double* q_thr, const uint8_t g, const double h, const uint32_t K
+		const double* p, double* q_t, const uint8_t g, const double h, const uint32_t K
 	) noexcept nogil:
 	cdef:
-		size_t k
 		double d = <double>g
 		double a = d/h
 		double b = (2.0 - d)/(1.0 - h)
+		size_t k
 	for k in range(K):
-		q_thr[k] += p[k]*(a - b) + b
+		q_t[k] += p[k]*(a - b) + b
 
 # Outer loop update for P
 cdef inline void _outerP(
@@ -94,41 +94,45 @@ cdef inline void _outerAccelP(
 
 # Outer loop update for Q
 cdef inline void _outerQ(
-		double* q, double* q_tmp, const double a, const uint32_t K
+		double* q, double* q_t, const double a, const uint32_t K
 	) noexcept nogil:
 	cdef:
-		size_t k
 		double sumQ = 0.0
+		double tmpQ
+		size_t k
 	for k in range(K):
-		q[k] = _project(q[k]*q_tmp[k]*a)
-		sumQ += q[k]
+		tmpQ = _project(q[k]*q_t[k]*a)
+		sumQ += tmpQ
+		q[k] = tmpQ
+		q_t[k] = 0.0
 	for k in range(K):
 		q[k] /= sumQ
-		q_tmp[k] = 0.0
 
 # Outer loop accelerated update for Q
 cdef inline void _outerAccelQ(
-		const double* q, double* q_new, double* q_tmp, const double a, const uint32_t K
+		const double* q, double* q_n, double* q_t, const double a, const uint32_t K
 	) noexcept nogil:
 	cdef:
-		size_t k
 		double sumQ = 0.0
+		double tmpQ
+		size_t k
 	for k in range(K):
-		q_new[k] = _project(q[k]*q_tmp[k]*a)
-		sumQ += q_new[k]
+		tmpQ = _project(q[k]*q_t[k]*a)
+		sumQ += tmpQ
+		q_n[k] = tmpQ
+		q_t[k] = 0.0
 	for k in range(K):
-		q_new[k] /= sumQ
-		q_tmp[k] = 0.0
+		q_n[k] /= sumQ
 
 # Estimate QN factor
 cdef inline double _computeC(
 		const double* x0, const double* x1, const double* x2, const uint32_t I
 	) noexcept nogil:
 	cdef:
-		size_t i
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double u, v
+		size_t i
 	for i in prange(I):
 		u = x1[i] - x0[i]
 		v = x2[i] - x1[i] - u
@@ -141,8 +145,8 @@ cdef inline void _computeP(
 		double* p0, const double* p1, const double* p2, const double c1, const uint32_t I
 	) noexcept nogil:
 	cdef:
-		size_t i
 		double c2 = 1.0 - c1
+		size_t i
 	for i in prange(I):
 		p0[i] = _project(c2*p1[i] + c1*p2[i])
 
@@ -151,25 +155,27 @@ cdef inline void _computeQ(
 		double* q0, const double* q1, const double* q2, const double c1, const double c2, const uint32_t K
 	) noexcept nogil:
 	cdef:
-		size_t k
 		double sumQ = 0.0
+		double tmpQ
+		size_t k
 	for k in range(K):
-		q0[k] = _project(c2*q1[k] + c1*q2[k])
-		sumQ += q0[k]
+		tmpQ = _project(c2*q1[k] + c1*q2[k])
+		sumQ += tmpQ
+		q0[k] = tmpQ
 	for k in range(K):
 		q0[k] /= sumQ
 
 # Estimate QN factor for batch P
 cdef inline double _computeBatchC(
-		const double* p0, const double* p1, const double* p2, const uint32_t* s, const uint32_t M, const uint32_t K
+		const double* p0, const double* p1, const double* p2, const uint32_t* s_var, const uint32_t M, const uint32_t K
 	) noexcept nogil:
 	cdef:
-		size_t j, k, l
 		double sum1 = 0.0
 		double sum2 = 0.0
 		double u, v
+		size_t j, k, l
 	for j in prange(M):
-		l = <size_t>(s[j]*K)
+		l = <size_t>(s_var[j]*K)
 		for k in range(K):
 			u = p1[l+k] - p0[l+k]
 			v = p2[l+k] - p1[l+k] - u
@@ -311,11 +317,11 @@ cpdef void alphaQ(
 # Update P in batch acceleration
 cpdef void accelBatchP(
 		uint8_t[:,::1] G, double[:,::1] P, double[:,::1] P_new, double[:,::1] Q, double[:,::1] Q_tmp, 
-		double[::1] q_bat, const uint32_t[::1] s
+		double[::1] q_bat, const uint32_t[::1] s_var
 	) noexcept nogil:
 	cdef:
 		uint8_t* g
-		uint32_t M = s.shape[0]
+		uint32_t M = s_var.shape[0]
 		uint32_t N = G.shape[1]
 		uint32_t K = Q.shape[1]
 		double h
@@ -332,7 +338,7 @@ cpdef void accelBatchP(
 		q_thr = <double*>calloc(N*K, sizeof(double))
 		q_len = <double*>calloc(N, sizeof(double))
 		for j in prange(M):
-			l = <size_t>s[j]
+			l = <size_t>s_var[j]
 			p = &P[l,0]
 			g = &G[l,0]
 			for i in range(N):
@@ -357,17 +363,17 @@ cpdef void accelBatchP(
 
 # Batch accelerated jump for P (QN)
 cpdef void alphaBatchP(
-		double[:,::1] P, const double[:,::1] P1, const double[:,::1] P2, const uint32_t[::1] s
+		double[:,::1] P, const double[:,::1] P1, const double[:,::1] P2, const uint32_t[::1] s_var
 	) noexcept nogil:
 	cdef:
-		uint32_t M = s.shape[0]
+		uint32_t M = s_var.shape[0]
 		uint32_t K = P.shape[1]
 		double c1, c2
 		size_t j, k, l
-	c1 = _computeBatchC(&P[0,0], &P1[0,0], &P2[0,0], &s[0], M, K)
+	c1 = _computeBatchC(&P[0,0], &P1[0,0], &P2[0,0], &s_var[0], M, K)
 	c2 = 1.0 - c1
 	for j in prange(M):
-		l = <size_t>s[j]
+		l = <size_t>s_var[j]
 		for k in range(K):
 			P[l,k] = _project(c2*P1[l,k] + c1*P2[l,k])
 
@@ -476,11 +482,11 @@ cpdef void stepQ(
 # Update Q temp arrays in batch acceleration
 cpdef void stepBatchQ(
 		uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q, double[:,::1] Q_tmp, double[::1] q_bat,
-		const uint32_t[::1] s
+		const uint32_t[::1] s_var
 	) noexcept nogil:
 	cdef:
 		uint8_t* g
-		uint32_t M = s.shape[0]
+		uint32_t M = s_var.shape[0]
 		uint32_t N = G.shape[1]
 		uint32_t K = Q.shape[1]
 		double h
@@ -494,7 +500,7 @@ cpdef void stepBatchQ(
 		q_thr = <double*>calloc(N*K, sizeof(double))
 		q_len = <double*>calloc(N, sizeof(double))
 		for j in prange(M):
-			l = <size_t>s[j]
+			l = <size_t>s_var[j]
 			p = &P[l,0]
 			g = &G[l,0]
 			for i in range(N):

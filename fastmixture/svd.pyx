@@ -10,9 +10,9 @@ cdef float PRO_MAX = 1.0-(1e-5)
 ##### Randomized SVD - PCAone method #####
 # Truncate parameters to domain
 cdef inline float _project(
-		float s
+		float a
 	) noexcept nogil:
-	return fminf(fmaxf(s, PRO_MIN), PRO_MAX)
+	return fminf(fmaxf(a, PRO_MIN), PRO_MAX)
 
 # Load centered chunk from PLINK file for SVD
 cpdef void plinkChunk(
@@ -56,12 +56,13 @@ cpdef void map2domain(
 	cdef:
 		uint32_t N = Q.shape[0]
 		uint32_t K = Q.shape[1]
-		float sumQ
+		float sumQ, tmpQ
 		size_t i, k
 	for i in range(N):
 		sumQ = 0.0
 		for k in range(K):
-			Q[i,k] = _project(Q[i,k])
-			sumQ += Q[i,k]
+			tmpQ = _project(Q[i,k])
+			sumQ += tmpQ
+			Q[i,k] = tmpQ
 		for k in range(K):
 			Q[i,k] /= sumQ

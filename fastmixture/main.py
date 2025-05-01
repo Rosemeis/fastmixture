@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -178,27 +178,13 @@ def main():
 			del f, U, V
 		y = None
 
-	# Set up containers for EM algorithm
-	s = np.arange(M, dtype=np.uint32)
-	Q1 = np.zeros_like(Q)
-	Q2 = np.zeros_like(Q)
-	Q_old = np.zeros_like(Q)
-	Q_tmp = np.zeros_like(Q)
-	q_bat = np.zeros(N)
-	if args.projection is None:
-		P1 = np.zeros_like(P)
-		P2 = np.zeros_like(P)
-		P_old = np.zeros_like(P)
-
 	# Fastmixture
 	if args.projection is not None: # Projection mode
 		from fastmixture import projection
-		L, it, con = projection.fastProject(G, P, Q, Q1, Q2, Q_tmp, Q_old, q_nrm, q_bat, s, args.iter, args.tole, 
-			args.check, args.batches, rng)
+		L, it, con = projection.fastProject(G, P, Q, q_nrm, args.iter, args.tole, args.check, args.batches, rng)
 	else: # Unsupervised or supervised mode
 		from fastmixture import functions
-		L, it, con = functions.fastRun(G, P, Q, P1, P2, Q1, Q2, Q_tmp, P_old, Q_old, q_nrm, q_bat, s, y, args.iter, 
-			args.tole, args.check, args.batches, rng)
+		L, it, con = functions.fastRun(G, P, Q, q_nrm, y, args.iter, args.tole, args.check, args.batches, rng)
 
 	# Print elapsed time for estimation
 	t_tot = time()-start
