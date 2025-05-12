@@ -195,7 +195,7 @@ def main():
 	### Save estimates and write output to log-file
 	np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.Q", Q, fmt="%.6f")
 	print(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q")
-	if not args.no_freqs or (args.projection is not None): # Save frequencies
+	if not args.no_freqs and (args.projection is None): # Save frequencies
 		np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.P", P, fmt="%.6f")
 		print(f"Saved P matrix as {args.out}.K{args.K}.s{args.seed}.P")
 
@@ -208,7 +208,7 @@ def main():
 			log.write(f"EM algorithm did not converge in {args.iter} iterations!\n")
 		log.write(f"Total elapsed time: {t_min}m{t_sec}s\n")
 		log.write(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q\n")
-		if not args.no_freqs or (args.projection is not None):
+		if not args.no_freqs and (args.projection is None):
 			log.write(f"Saved P matrix as {args.out}.K{args.K}.s{args.seed}.P\n")
 
 
