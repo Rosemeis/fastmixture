@@ -39,7 +39,13 @@ def steps(G, P, Q, Q_tmp, q_nrm):
 
 
 ### fastmixture run
-def fastProject(G, P, Q, q_nrm, iter, tole, check, batches, rng):
+def fastProject(G, P, Q, q_nrm, rng, run):
+	# Extract run options
+	iter = run["iter"]
+	tole = run["tole"]
+	check = run["check"]
+	batches = run["batches"]
+
 	# Estimate initial log-likelihood
 	L_old = shared.loglike(G, P, Q)
 	print(f"Initial log-like: {L_old:.1f}")

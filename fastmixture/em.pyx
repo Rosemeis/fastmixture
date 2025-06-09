@@ -2,7 +2,6 @@
 cimport numpy as np
 cimport openmp as omp
 from cython.parallel import parallel, prange
-from libc.math cimport fmax, fmin
 from libc.stdint cimport uint8_t, uint32_t
 from libc.stdlib cimport calloc, free
 
@@ -12,13 +11,6 @@ cdef double ACC_MIN = 1.0
 cdef double ACC_MAX = 256.0
 
 ##### fastmixture #####
-### Inline functions
-# Truncate parameters to domain
-cdef inline double _project(
-		const double a
-	) noexcept nogil:
-	return fmin(fmax(a, PRO_MIN), PRO_MAX)
-
 # Estimate individual allele frequencies
 cdef inline double _computeH(
 		const double* p, const double* q, const uint32_t K
@@ -39,11 +31,14 @@ cdef inline void _inner(
 		double d = <double>g
 		double a = d/h
 		double b = (2.0 - d)/(1.0 - h)
+		double c = a - b
+		double q_k
 		size_t k
 	for k in range(K):
-		p_a[k] += q[k]*a
-		p_b[k] += q[k]*b
-		q_t[k] += p[k]*(a - b) + b
+		q_k = q[k]
+		p_a[k] += q_k*a
+		p_b[k] += q_k*b
+		q_t[k] += p[k]*c + b
 
 # Inner loop update for temp P
 cdef inline void _innerP(
@@ -53,10 +48,12 @@ cdef inline void _innerP(
 		double d = <double>g
 		double a = d/h
 		double b = (2.0 - d)/(1.0 - h)
+		double q_k
 		size_t k
 	for k in range(K):
-		p_a[k] += q[k]*a
-		p_b[k] += q[k]*b
+		q_k = q[k]
+		p_a[k] += q_k*a
+		p_b[k] += q_k*b
 
 # Inner loop update for temp Q
 cdef inline void _innerQ(
@@ -66,18 +63,24 @@ cdef inline void _innerQ(
 		double d = <double>g
 		double a = d/h
 		double b = (2.0 - d)/(1.0 - h)
+		double c = a - b
 		size_t k
 	for k in range(K):
-		q_t[k] += p[k]*(a - b) + b
+		q_t[k] += p[k]*c + b
 
 # Outer loop update for P
 cdef inline void _outerP(
 		double* p, double* p_a, double* p_b, const uint32_t K
 	) noexcept nogil:
 	cdef:
+		double a, b, c, d
 		size_t k
 	for k in range(K):
-		p[k] = _project((p_a[k]*p[k])/(p[k]*(p_a[k] - p_b[k]) + p_b[k]))
+		c = p[k]
+		a = p_a[k]
+		b = p_b[k]
+		d = a*c/(c*(a - b) + b)
+		p[k] = PRO_MIN if d < PRO_MIN else (PRO_MAX if d > PRO_MAX else d)
 		p_a[k] = 0.0
 		p_b[k] = 0.0
 
@@ -86,22 +89,28 @@ cdef inline void _outerAccelP(
 		const double* p, double* p_n, double* p_a, double* p_b, const uint32_t K
 	) noexcept nogil:
 	cdef:
+		double a, b, c, d
 		size_t k
 	for k in range(K):
-		p_n[k] = _project((p_a[k]*p[k])/(p[k]*(p_a[k] - p_b[k]) + p_b[k]))
+		c = p[k]
+		a = p_a[k]
+		b = p_b[k]
+		d = a*c/(c*(a - b) + b)
+		p_n[k] = PRO_MIN if d < PRO_MIN else (PRO_MAX if d > PRO_MAX else d)
 		p_a[k] = 0.0
 		p_b[k] = 0.0
 
 # Outer loop update for Q
 cdef inline void _outerQ(
-		double* q, double* q_t, const double a, const uint32_t K
+		double* q, double* q_t, const double c, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		double sumQ = 0.0
-		double tmpQ
+		double a, tmpQ
 		size_t k
 	for k in range(K):
-		tmpQ = _project(q[k]*q_t[k]*a)
+		a = q[k]*q_t[k]*c
+		tmpQ = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
 		sumQ += tmpQ
 		q[k] = tmpQ
 		q_t[k] = 0.0
@@ -110,45 +119,71 @@ cdef inline void _outerQ(
 
 # Outer loop accelerated update for Q
 cdef inline void _outerAccelQ(
-		const double* q, double* q_n, double* q_t, const double a, const uint32_t K
+		const double* q, double* q_n, double* q_t, const double c, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		double sumQ = 0.0
-		double tmpQ
+		double a, tmpQ
 		size_t k
 	for k in range(K):
-		tmpQ = _project(q[k]*q_t[k]*a)
+		a = q[k]*q_t[k]*c
+		tmpQ = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
 		sumQ += tmpQ
 		q_n[k] = tmpQ
 		q_t[k] = 0.0
 	for k in range(K):
 		q_n[k] /= sumQ
 
-# Estimate QN factor
-cdef inline double _computeC(
-		const double* x0, const double* x1, const double* x2, const uint32_t I
+# Estimate QN factor for P
+cdef inline double _qnP(
+		const double* p0, const double* p1, const double* p2, const uint32_t M, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		double sum1 = 0.0
 		double sum2 = 0.0
-		double u, v
-		size_t i
-	for i in prange(I):
-		u = x1[i] - x0[i]
-		v = x2[i] - x1[i] - u
-		sum1 += u*u
-		sum2 += u*v
-	return fmin(fmax(-(sum1/sum2), ACC_MIN), ACC_MAX)
+		double c, p, u, v
+		size_t j, k, l
+	for j in prange(M):
+		l = j*K
+		for k in range(K):
+			p = p1[l+k]
+			u = p - p0[l+k]
+			v = p2[l+k] - p - u
+			sum1 += u*u
+			sum2 += u*v
+	c = -(sum1/sum2)
+	return ACC_MIN if c < ACC_MIN else (ACC_MAX if c > ACC_MAX else c)
+
+# Estimate QN factor for Q
+cdef inline double _qnQ(
+		const double* q0, const double* q1, const double* q2, const uint32_t N, const uint32_t K
+	) noexcept nogil:
+	cdef:
+		double sum1 = 0.0
+		double sum2 = 0.0
+		double c, q, u, v
+		size_t i, k, l
+	for i in range(N):
+		l = i*K
+		for k in range(K):
+			q = q1[l+k]
+			u = q - q0[l+k]
+			v = q2[l+k] - q - u
+			sum1 += u*u
+			sum2 += u*v
+	c = -(sum1/sum2)
+	return ACC_MIN if c < ACC_MIN else (ACC_MAX if c > ACC_MAX else c)
 
 # Alpha update for P
 cdef inline void _computeP(
-		double* p0, const double* p1, const double* p2, const double c1, const uint32_t I
+		double* p0, const double* p1, const double* p2, const double c1, const double c2, const uint32_t K
 	) noexcept nogil:
 	cdef:
-		double c2 = 1.0 - c1
-		size_t i
-	for i in prange(I):
-		p0[i] = _project(c2*p1[i] + c1*p2[i])
+		double a
+		size_t k
+	for k in range(K):
+		a = c2*p1[k] + c1*p2[k]
+		p0[k] = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
 
 # Alpha update for Q
 cdef inline void _computeQ(
@@ -156,32 +191,35 @@ cdef inline void _computeQ(
 	) noexcept nogil:
 	cdef:
 		double sumQ = 0.0
-		double tmpQ
+		double a, tmpQ
 		size_t k
 	for k in range(K):
-		tmpQ = _project(c2*q1[k] + c1*q2[k])
+		a = c2*q1[k] + c1*q2[k]
+		tmpQ = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
 		sumQ += tmpQ
 		q0[k] = tmpQ
 	for k in range(K):
 		q0[k] /= sumQ
 
 # Estimate QN factor for batch P
-cdef inline double _computeBatchC(
+cdef inline double _qnBatch(
 		const double* p0, const double* p1, const double* p2, const uint32_t* s_var, const uint32_t M, const uint32_t K
 	) noexcept nogil:
 	cdef:
 		double sum1 = 0.0
 		double sum2 = 0.0
-		double u, v
+		double c, p, u, v
 		size_t j, k, l
 	for j in prange(M):
-		l = <size_t>(s_var[j]*K)
+		l = s_var[j]*K
 		for k in range(K):
-			u = p1[l+k] - p0[l+k]
-			v = p2[l+k] - p1[l+k] - u
+			p = p1[l+k]
+			u = p - p0[l+k]
+			v = p2[l+k] - p - u
 			sum1 += u*u
 			sum2 += u*v
-	return fmin(fmax(-(sum1/sum2), ACC_MIN), ACC_MAX)
+	c = -(sum1/sum2)
+	return ACC_MIN if c < ACC_MIN else (ACC_MAX if c > ACC_MAX else c)
 
 
 ### Update functions
@@ -272,9 +310,12 @@ cpdef void alphaP(
 	cdef:
 		uint32_t M = P.shape[0]
 		uint32_t K = P.shape[1]
-		double c
-	c = _computeC(&P[0,0], &P1[0,0], &P2[0,0], M*K)
-	_computeP(&P[0,0], &P1[0,0], &P2[0,0], c, M*K)
+		double c1, c2
+		size_t j
+	c1 = _qnP(&P[0,0], &P1[0,0], &P2[0,0], M, K)
+	c2 = 1.0 - c1
+	for j in prange(M):
+		_computeP(&P[j,0], &P1[j,0], &P2[j,0], c1, c2, K)
 
 # Update Q from temp arrays
 cpdef void updateQ(
@@ -307,7 +348,7 @@ cpdef void alphaQ(
 		uint32_t K = Q.shape[1]
 		size_t i
 		double c1, c2
-	c1 = _computeC(&Q[0,0], &Q1[0,0], &Q2[0,0], N*K)
+	c1 = _qnQ(&Q[0,0], &Q1[0,0], &Q2[0,0], N, K)
 	c2 = 1.0 - c1
 	for i in range(N):
 		_computeQ(&Q[i,0], &Q1[i,0], &Q2[i,0], c1, c2, K)
@@ -338,7 +379,7 @@ cpdef void accelBatchP(
 		q_thr = <double*>calloc(N*K, sizeof(double))
 		q_len = <double*>calloc(N, sizeof(double))
 		for j in prange(M):
-			l = <size_t>s_var[j]
+			l = s_var[j]
 			p = &P[l,0]
 			g = &G[l,0]
 			for i in range(N):
@@ -370,12 +411,11 @@ cpdef void alphaBatchP(
 		uint32_t K = P.shape[1]
 		double c1, c2
 		size_t j, k, l
-	c1 = _computeBatchC(&P[0,0], &P1[0,0], &P2[0,0], &s_var[0], M, K)
+	c1 = _qnBatch(&P[0,0], &P1[0,0], &P2[0,0], &s_var[0], M, K)
 	c2 = 1.0 - c1
 	for j in prange(M):
-		l = <size_t>s_var[j]
-		for k in range(K):
-			P[l,k] = _project(c2*P1[l,k] + c1*P2[l,k])
+		l = s_var[j]
+		_computeP(&P[l,0], &P1[l,0], &P2[l,0], c1, c2, K)
 
 # Batch update Q from temp arrays
 cpdef void accelBatchQ(
@@ -500,7 +540,7 @@ cpdef void stepBatchQ(
 		q_thr = <double*>calloc(N*K, sizeof(double))
 		q_len = <double*>calloc(N, sizeof(double))
 		for j in prange(M):
-			l = <size_t>s_var[j]
+			l = s_var[j]
 			p = &P[l,0]
 			g = &G[l,0]
 			for i in range(N):

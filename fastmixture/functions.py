@@ -87,7 +87,13 @@ def safQuasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, q_nrm, y):
 
 
 ### fastmixture run
-def fastRun(G, P, Q, q_nrm, y, iter, tole, check, batches, rng):
+def fastRun(G, P, Q, q_nrm, y, rng, run):
+	# Extract run options
+	iter = run["iter"]
+	tole = run["tole"]
+	check = run["check"]
+	batches = run["batches"]
+
 	# Estimate initial log-likelihood
 	L_old = shared.loglike(G, P, Q)
 	print(f"Initial log-like: {L_old:.1f}")

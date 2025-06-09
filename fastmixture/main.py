@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -177,14 +177,22 @@ def main():
 			print(f"\rExtracted factor matrices\t({time()-ts:.1f}s)")
 			del f, U, V
 		y = None
+	
+	# Run options dictionary
+	run = {
+		"iter":args.iter,
+		"tole":args.tole,
+		"check":args.check,
+		"batches":args.batches,
+	}
 
 	# Fastmixture
 	if args.projection is not None: # Projection mode
 		from fastmixture import projection
-		L, it, con = projection.fastProject(G, P, Q, q_nrm, args.iter, args.tole, args.check, args.batches, rng)
+		L, it, con = projection.fastProject(G, P, Q, q_nrm, rng, run)
 	else: # Unsupervised or supervised mode
 		from fastmixture import functions
-		L, it, con = functions.fastRun(G, P, Q, q_nrm, y, args.iter, args.tole, args.check, args.batches, rng)
+		L, it, con = functions.fastRun(G, P, Q, q_nrm, y, rng, run)
 
 	# Print elapsed time for estimation
 	t_tot = time()-start

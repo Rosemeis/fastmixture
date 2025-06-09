@@ -2,7 +2,7 @@
 cimport numpy as np
 cimport openmp as omp
 from cython.parallel import parallel, prange
-from libc.math cimport fmax, fmin, log, log1p, sqrt
+from libc.math cimport log, log1p, sqrt
 from libc.stdint cimport uint8_t, uint32_t
 from libc.stdlib cimport calloc, free
 
@@ -10,12 +10,6 @@ cdef double PRO_MIN = 1e-5
 cdef double PRO_MAX = 1.0-(1e-5)
 
 ##### fastmixture ######
-# Truncate parameters to domain
-cdef inline double _project(
-		const double a
-	) noexcept nogil:
-	return fmin(fmax(a, PRO_MIN), PRO_MAX)
-
 # Compute individual allele frequency
 cdef inline double _computeH(
 		const double* p, const double* q, const uint32_t K
@@ -75,21 +69,25 @@ cpdef void initP(
 		uint32_t M = G.shape[0]
 		uint32_t N = G.shape[1]
 		uint32_t K = P.shape[1]
+		double tmpP
+		double* p
 		double* x
 		size_t i, j, k
 	for j in prange(M):
 		x = <double*>calloc(K, sizeof(double))
 		g = &G[j,0]
+		p = &P[j,0]
 		for i in range(N):
 			if g[i] == 9:
 				continue
 			if y[i] > 0:
 				x[y[i]-1] += 1.0
-				P[j,y[i]-1] += <double>g[i]
+				p[y[i]-1] += <double>g[i]
 		for k in range(K):
+			tmpP = p[k]
 			if x[k] > 0.0:
-				P[j,k] /= (2.0*x[k])
-			P[j,k] = _project(P[j,k])
+				tmpP = tmpP/(2.0*x[k])
+			p[k] = PRO_MIN if tmpP < PRO_MIN else (PRO_MAX if tmpP > PRO_MAX else tmpP)
 			x[k] = 0.0
 		free(x)
 
@@ -100,21 +98,24 @@ cpdef void initQ(
 	cdef:
 		uint32_t N = Q.shape[0]
 		uint32_t K = Q.shape[1]
-		double sumQ
+		double sumQ, tmpQ
+		double* q
 		size_t i, k
 	for i in range(N):
+		q = &Q[i,0]
 		if y[i] > 0:
 			for k in range(K):
 				if k == (y[i]-1):
-					Q[i,k] = PRO_MAX
+					q[k] = PRO_MAX
 				else:
-					Q[i,k] = PRO_MIN
+					q[k] = PRO_MIN
 		sumQ = 0.0
 		for k in range(K):
-			Q[i,k] = _project(Q[i,k])
-			sumQ += Q[i,k]
+			tmpQ = q[k]
+			q[k] = PRO_MIN if tmpQ < PRO_MIN else (PRO_MAX if tmpQ > PRO_MAX else tmpQ)
+			sumQ += q[k]
 		for k in range(K):
-			Q[i,k] /= sumQ
+			q[k] /= sumQ
 
 # Update Q in supervised mode
 cpdef void superQ(
@@ -124,18 +125,20 @@ cpdef void superQ(
 		uint32_t N = Q.shape[0]
 		uint32_t K = Q.shape[1]
 		double sumQ
+		double* q
 		size_t i, k
 	for i in range(N):
+		q = &Q[i,0]
 		if y[i] > 0:
 			sumQ = 0.0
 			for k in range(K):
 				if k == (y[i]-1):
-					Q[i,k] = PRO_MAX
+					q[k] = PRO_MAX
 				else:
-					Q[i,k] = PRO_MIN
-				sumQ += Q[i,k]
+					q[k] = PRO_MIN
+				sumQ += q[k]
 			for k in range(K):
-				Q[i,k] /= sumQ
+				q[k] /= sumQ
 
 # Estimate minor allele frequencies
 cpdef void estimateFreq(

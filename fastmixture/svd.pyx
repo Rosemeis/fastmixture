@@ -1,19 +1,13 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True
 cimport numpy as np
 from cython.parallel import prange
-from libc.math cimport fmaxf, fminf, sqrtf
+from libc.math cimport sqrtf
 from libc.stdint cimport uint8_t, uint32_t
 
 cdef float PRO_MIN = 1e-5
 cdef float PRO_MAX = 1.0-(1e-5)
 
 ##### Randomized SVD - PCAone method #####
-# Truncate parameters to domain
-cdef inline float _project(
-		float a
-	) noexcept nogil:
-	return fminf(fmaxf(a, PRO_MIN), PRO_MAX)
-
 # Load centered chunk from PLINK file for SVD
 cpdef void plinkChunk(
 		uint8_t[:,::1] G, float[:,::1] X, const float[::1] f, const uint32_t m
@@ -56,13 +50,16 @@ cpdef void map2domain(
 	cdef:
 		uint32_t N = Q.shape[0]
 		uint32_t K = Q.shape[1]
-		float sumQ, tmpQ
+		float a, sumQ, tmpQ
+		float* q
 		size_t i, k
 	for i in range(N):
+		q = &Q[i,0]
 		sumQ = 0.0
 		for k in range(K):
-			tmpQ = _project(Q[i,k])
+			a = q[k]
+			tmpQ = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
 			sumQ += tmpQ
-			Q[i,k] = tmpQ
+			q[k] = tmpQ
 		for k in range(K):
-			Q[i,k] /= sumQ
+			q[k] /= sumQ
