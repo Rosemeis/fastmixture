@@ -2,52 +2,142 @@
 cimport numpy as np
 cimport openmp as omp
 from cython.parallel import parallel, prange
-from libc.math cimport log, log1p, sqrt
+from libc.math cimport log, sqrt
 from libc.stdint cimport uint8_t, uint32_t
 from libc.stdlib cimport calloc, free
 
-cdef double PRO_MIN = 1e-5
-cdef double PRO_MAX = 1.0-(1e-5)
+ctypedef uint8_t u8
+ctypedef uint32_t u32
+ctypedef float f32
+ctypedef double f64
 
-##### fastmixture ######
-# Compute individual allele frequency
-cdef inline double _computeH(
-		const double* p, const double* q, const uint32_t K
+cdef f64 PRO_MIN = 1e-5
+cdef f64 PRO_MAX = 1.0-(1e-5)
+
+
+##### fastmixture - misc. functions ######
+# Set up initialization of Q
+cdef inline void _begQ(
+		f64* q, const u8 y, const Py_ssize_t K
 	) noexcept nogil:
 	cdef:
-		double h = 0.0
 		size_t k
+		f64 sumQ = 0.0
+		f64 a
+	if y > 0:
+		for k in range(k):
+			q[k] = PRO_MAX if k == (y-1) else PRO_MIN
+	for k in range(K):
+		a = q[k]
+		q[k] = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
+		sumQ += q[k]
+	for k in range(K):
+		q[k] /= sumQ
+
+# Set up supervised Q
+cdef inline void _setQ(
+		f64* q, const u8 y, const Py_ssize_t K
+	) noexcept nogil:
+	cdef:
+		size_t k
+		f64 sumQ = 0.0
+	for k in range(K):
+		q[k] = PRO_MAX if k == y else PRO_MIN
+		sumQ += q[k]
+	for k in range(K):
+		q[k] /= sumQ
+
+# Compute individual allele frequency
+cdef inline void _computeH(
+		f64* Q, const f64* p, f64* h, const Py_ssize_t N, const Py_ssize_t K
+	) noexcept nogil:
+	cdef:
+		size_t i, k
+		f64* q
+	for i in range(N):
+		q = &Q[i*K]
+		for k in range(K):
+			h[i] += p[k]*q[k]
+
+# Estimate individual allele frequencies (older)
+cdef inline f64 _computeI(
+		const f64* p, const f64* q, const Py_ssize_t K
+	) noexcept nogil:
+	cdef:
+		size_t k
+		f64 h = 0.0
 	for k in range(K):
 		h += p[k]*q[k]
 	return h
 
-# Expand data from 2-bit to 8-bit genotype matrix
-cpdef void expandGeno(
-		const uint8_t[:,::1] B, uint8_t[:,::1] G, double[::1] q_nrm
+# Compute log-likelihood contribution
+cdef inline f64 _computeL(
+		const u8* g, f64* h, const Py_ssize_t N
 	) noexcept nogil:
 	cdef:
-		uint8_t[4] recode = [2, 9, 1, 0]
-		uint8_t mask = 3
-		uint8_t byte
-		uint8_t* g
-		uint32_t M = G.shape[0]
-		uint32_t N = G.shape[1]
-		uint32_t N_b = B.shape[1]
-		double* Q_cnt
+		size_t i
+		f64 r = 0.0
+		f64 d
+	for i in range(N):
+		d = <f64>g[i]
+		r += d*log(h[i]) + (2.0 - d)*log(1.0 - h[i])
+		h[i] = 0.0
+	return r
+
+# Compute log-likelihood contribution (with missingness check)
+cdef inline f64 _computeM(
+		const u8* g, f64* h, const Py_ssize_t N
+	) noexcept nogil:
+	cdef:
+		size_t i
+		f64 r = 0.0
+		f64 d
+	for i in range(N):
+		d = <f64>g[i]
+		r += d*log(h[i]) + (2.0 - d)*log(1.0 - h[i]) if g[i] != 9 else 0.0
+		h[i] = 0.0
+	return r
+
+# Compute the squared difference
+cdef inline f64 _computeR(
+		const f64* a, const f64* b, const Py_ssize_t I
+	) noexcept nogil:
+	cdef:
+		size_t i
+		f64 r = 0.0
+		f64 c
+	for i in range(I):
+		c = a[i] - b[i]
+		r += c*c
+	return r
+
+# Expand data from 2-bit to 8-bit shuffled genotype matrix
+cpdef void expandShuf(
+		const u8[:,::1] B, u8[:,::1] G, f64[::1] q_nrm, const u32[::1] s_ord
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = G.shape[1]
+		Py_ssize_t N_b = B.shape[1]
 		size_t i, j, b, x, bit
+		u8[4] recode = [2, 9, 1, 0]
+		u8 mask = 3
+		u8 byte
+		u8* g
+		f64* Q_cnt
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
-		Q_cnt = <double*>calloc(N, sizeof(double))
-		for j in prange(M):
+		Q_cnt = <f64*>calloc(N, sizeof(f64))
+		for j in prange(M, schedule='guided'):
 			i = 0
-			g = &G[j,0]
+			g = &G[s_ord[j],0]
 			for b in range(N_b):
 				byte = B[j,b]
 				for bit in range(4):
 					g[i] = recode[(byte >> 2*bit) & mask]
 					if g[i] != 9:
-						Q_cnt[i] += 1.0
+						Q_cnt[i] += 2.0
 					i = i + 1
 					if i == N:
 						break
@@ -62,177 +152,202 @@ cpdef void expandGeno(
 
 # Initialize P in supervised mode
 cpdef void initP(
-		uint8_t[:,::1] G, double[:,::1] P, const uint8_t[::1] y
+		u8[:,::1] G, f64[:,::1] P, const u8[::1] y
 	) noexcept nogil:
 	cdef:
-		uint8_t* g
-		uint32_t M = G.shape[0]
-		uint32_t N = G.shape[1]
-		uint32_t K = P.shape[1]
-		double tmpP
-		double* p
-		double* x
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = G.shape[1]
+		Py_ssize_t K = P.shape[1]
 		size_t i, j, k
-	for j in prange(M):
-		x = <double*>calloc(K, sizeof(double))
-		g = &G[j,0]
-		p = &P[j,0]
-		for i in range(N):
-			if g[i] == 9:
-				continue
-			if y[i] > 0:
-				x[y[i]-1] += 1.0
-				p[y[i]-1] += <double>g[i]
-		for k in range(K):
-			tmpP = p[k]
-			if x[k] > 0.0:
-				tmpP = tmpP/(2.0*x[k])
-			p[k] = PRO_MIN if tmpP < PRO_MIN else (PRO_MAX if tmpP > PRO_MAX else tmpP)
-			x[k] = 0.0
+		u8* g
+		f64 a
+		f64* p
+		f64* x
+	with nogil, parallel():
+		x = <f64*>calloc(K, sizeof(f64))
+		for j in prange(M, schedule='guided'):
+			g = &G[j,0]
+			p = &P[j,0]
+			for i in range(N):
+				if (g[i] != 9) and (y[i] > 0):
+					x[y[i]-1] += 2.0
+					p[y[i]-1] += <f64>g[i]
+			for k in range(K):
+				a = p[k]
+				if x[k] > 0.0:
+					a = a/x[k]
+				p[k] = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
+				x[k] = 0.0
 		free(x)
 
 # Initialize Q in supervised mode
 cpdef void initQ(
-		double[:,::1] Q, const uint8_t[::1] y
+		f64[:,::1] Q, const u8[::1] y
 	) noexcept nogil:
 	cdef:
-		uint32_t N = Q.shape[0]
-		uint32_t K = Q.shape[1]
-		double sumQ, tmpQ
-		double* q
-		size_t i, k
-	for i in range(N):
-		q = &Q[i,0]
-		if y[i] > 0:
-			for k in range(K):
-				if k == (y[i]-1):
-					q[k] = PRO_MAX
-				else:
-					q[k] = PRO_MIN
-		sumQ = 0.0
-		for k in range(K):
-			tmpQ = q[k]
-			q[k] = PRO_MIN if tmpQ < PRO_MIN else (PRO_MAX if tmpQ > PRO_MAX else tmpQ)
-			sumQ += q[k]
-		for k in range(K):
-			q[k] /= sumQ
+		Py_ssize_t N = Q.shape[0]
+		Py_ssize_t K = Q.shape[1]
+		size_t i
+	for i in prange(N, schedule='guided'):
+		_begQ(&Q[i,0], y[i], K)
 
 # Update Q in supervised mode
 cpdef void superQ(
-		double[:,::1] Q, const uint8_t[::1] y
+		f64[:,::1] Q, const u8[::1] y
 	) noexcept nogil:
 	cdef:
-		uint32_t N = Q.shape[0]
-		uint32_t K = Q.shape[1]
-		double sumQ
-		double* q
-		size_t i, k
-	for i in range(N):
-		q = &Q[i,0]
+		Py_ssize_t N = Q.shape[0]
+		Py_ssize_t K = Q.shape[1]
+		size_t i
+	for i in prange(N, schedule='guided'):
 		if y[i] > 0:
-			sumQ = 0.0
-			for k in range(K):
-				if k == (y[i]-1):
-					q[k] = PRO_MAX
-				else:
-					q[k] = PRO_MIN
-				sumQ += q[k]
-			for k in range(K):
-				q[k] /= sumQ
+			_setQ(&Q[i,0], y[i]-1, K)
 
 # Estimate minor allele frequencies
 cpdef void estimateFreq(
-		uint8_t[:,::1] G, float[::1] f
+		u8[:,::1] G, f32[::1] f
 	) noexcept nogil:
 	cdef:
-		uint8_t* g
-		uint32_t M = G.shape[0]
-		uint32_t N = G.shape[1]
-		float c, n
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = G.shape[1]
 		size_t i, j
-	for j in prange(M):
+		u8* g
+		f32 c, n
+	for j in prange(M, schedule='guided'):
 		c = 0.0
 		n = 0.0
 		g = &G[j,0]
 		for i in range(N):
 			if g[i] != 9:
-				c = c + <float>g[i]
-				n = n + 1.0
-		f[j] = c/(2.0*n)
+				c = c + <f32>g[i]
+				n = n + 2.0
+		f[j] = c/n
 
 # Log-likelihood
-cpdef double loglike(
-		uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q
+cpdef f64 loglike(
+		const u8[:,::1] G, f64[:,::1] P, const f64[:,::1] Q
 	) noexcept nogil:
 	cdef:
-		uint8_t* g
-		uint32_t M = G.shape[0]
-		uint32_t N = G.shape[1]
-		uint32_t K = Q.shape[1]
-		double res = 0.0
-		double d, h
-		double* p
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = G.shape[1]
+		Py_ssize_t K = Q.shape[1]
 		size_t i, j
-	for j in prange(M):
-		p = &P[j,0]
-		g = &G[j,0]
-		for i in range(N):
-			if g[i] != 9:
-				h = _computeH(p, &Q[i,0], K)
-				d = <double>g[i]
-				res += d*log(h) + (2.0 - d)*log1p(-h)
-	return res
+		f64 a = (<f64>M)*(<f64>N)
+		f64 r = 0.0
+		f64 d
+		f64* h
+	with nogil, parallel():
+		h = <f64*>calloc(N, sizeof(f64))
+		for j in prange(M, schedule='guided'):
+			_computeH(&Q[i,0], &P[j,0], &h[0], N, K)
+			r += _computeL(&G[j,0], h, N)
+		free(h)
+	return r/a
+
+# Log-likelihood
+cpdef f64 loglike_missing(
+		const u8[:,::1] G, f64[:,::1] P, const f64[:,::1] Q
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = G.shape[1]
+		Py_ssize_t K = Q.shape[1]
+		size_t i, j
+		f64 a = (<f64>M)*(<f64>N)
+		f64 r = 0.0
+		f64 d
+		f64* h
+	with nogil, parallel():
+		h = <f64*>calloc(N, sizeof(f64))
+		for j in prange(M, schedule='guided'):
+			_computeH(&Q[i,0], &P[j,0], &h[0], N, K)
+			r += _computeM(&G[j,0], h, N)
+		free(h)
+	return r/a
+
+# Reorder ancestral allele frequencies
+cpdef void reorderP(
+		f64[:,::1] P, f64[:,::1] P_new, const u32[::1] s_ord
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t M = P.shape[0]
+		Py_ssize_t K = P.shape[1]
+		size_t j, k
+		f64* p_j
+		f64* p_n
+	for j in prange(M, schedule='guided'):
+		p_j = &P[s_ord[j],0]
+		p_n = &P_new[j,0]
+		for k in range(K):
+			p_n[k] = p_j[k]
+
+# Reorder ancestral allele frequencies
+cpdef void shuffleP(
+		f64[:,::1] P, f64[:,::1] P_new, const u32[::1] s_ord
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t M = P.shape[0]
+		Py_ssize_t K = P.shape[1]
+		size_t j, k
+		f64* p_j
+		f64* p_n
+	for j in prange(M, schedule='guided'):
+		p_j = &P[j,0]
+		p_n = &P_new[s_ord[j],0]
+		for k in range(K):
+			p_n[k] = p_j[k]
 
 # Root-mean-square error
-cpdef double rmse(
-		const double[:,::1] Q, const double[:,::1] Q_pre
+cpdef f64 rmse(
+		const f64[:,::1] Q, const f64[:,::1] Q_pre
 	) noexcept nogil:
 	cdef:
-		uint32_t N = Q.shape[0]
-		uint32_t K = Q.shape[1]
-		double res = 0.0
-		size_t i, k
-	for i in prange(N):
-		for k in range(K):
-			res += (Q[i,k] - Q_pre[i,k])*(Q[i,k] - Q_pre[i,k])
-	return sqrt(res/<double>(N*K))
+		Py_ssize_t N = Q.shape[0]
+		Py_ssize_t K = Q.shape[1]
+		f64 r
+	r = _computeR(&Q[0,0], &Q_pre[0,0], N*K)
+	return sqrt(r/((<f64>N)*(<f64>K)))
 
 # Sum-of-squares used in evaluation 
-cpdef double sumSquare(
-		uint8_t[:,::1] G, double[:,::1] P, const double[:,::1] Q
+cpdef f64 sumSquare(
+		u8[:,::1] G, f64[:,::1] P, const f64[:,::1] Q
 	) noexcept nogil:
 	cdef:
-		uint8_t* g
-		uint32_t M = G.shape[0]
-		uint32_t N = G.shape[1]
-		uint32_t K = Q.shape[1]
-		double res = 0.0
-		double d, h
-		double* p
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = G.shape[1]
+		Py_ssize_t K = Q.shape[1]
 		size_t i, j
-	for j in prange(M):
+		u8* g
+		f64 r = 0.0
+		f64 d, h
+		f64* p
+	for j in prange(M, schedule='guided'):
 		p = &P[j,0]
 		g = &G[j,0]
 		for i in range(N):
 			if g[i] != 9:
-				h = 2.0*_computeH(p, &Q[i,0], K)
-				d = <double>g[i]
-				res += (d - h)*(d - h)
-	return res
+				h = 2.0*_computeI(p, &Q[i,0], K)
+				d = <f64>g[i]
+				r += (d - h)*(d - h)
+	return r
 
 # Kullback-Leibler divergence with average for Jensen-Shannon
-cpdef double divKL(
-		const double[:,::1] A, const double[:,::1] B
+cpdef f64 divKL(
+		f64[:,::1] A, f64[:,::1] B
 	) noexcept nogil:
 	cdef:
-		uint32_t N = A.shape[0]
-		uint32_t K = A.shape[1]
-		double eps = 1e-10
-		double d = 0.0
-		double a
+		Py_ssize_t N = A.shape[0]
+		Py_ssize_t K = A.shape[1]
 		size_t i, k
-	for i in range(N):
+		f64 eps = 1e-10
+		f64 d = 0.0
+		f64 c
+		f64* a
+		f64* b
+	for i in prange(N, schedule='guided'):
+		a = &A[i,0]
+		b = &B[i,0]
 		for k in range(K):
-			a = (A[i,k] + B[i,k])*0.5
-			d += A[i,k]*log(A[i,k]/a + eps)
-	return d/<double>N
+			c = (a[k] + b[k])*0.5
+			d += a[k]*log(a[k]/c + eps)
+	return d/<f64>N

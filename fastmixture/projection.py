@@ -1,7 +1,6 @@
 import numpy as np
 from fastmixture import em
 from fastmixture import shared
-from math import ceil
 from time import time
 
 ##### fastmixture functions in projection mode #####
@@ -17,20 +16,20 @@ def quasi(G, P, Q0, Q_tmp, Q1, Q2, q_nrm):
 	em.accelQ(Q1, Q2, Q_tmp, q_nrm)
 
 	# Acceleration update
-	em.alphaQ(Q0, Q1, Q2)
+	em.jumpQ(Q0, Q1, Q2)
 
 # Mini-batch QN update
 def batQuasi(G, P, Q0, Q_tmp, Q1, Q2, q_bat, s_bat):
 	# 1st EM step
 	em.stepBatchQ(G, P, Q0, Q_tmp, q_bat, s_bat)
-	em.accelBatchQ(Q0, Q1, Q_tmp, q_bat)
+	em.batchQ(Q0, Q1, Q_tmp, q_bat)
 
 	# 2nd EM step
 	em.stepBatchQ(G, P, Q1, Q_tmp, q_bat, s_bat)
-	em.accelBatchQ(Q1, Q2, Q_tmp, q_bat)
+	em.batchQ(Q1, Q2, Q_tmp, q_bat)
 
 	# Batch acceleration update
-	em.alphaQ(Q0, Q1, Q2)
+	em.jumpQ(Q0, Q1, Q2)
 
 # Single updates
 def steps(G, P, Q, Q_tmp, q_nrm):
@@ -39,23 +38,20 @@ def steps(G, P, Q, Q_tmp, q_nrm):
 
 
 ### fastmixture run
-def fastProject(G, P, Q, q_nrm, rng, run):
+def fastRun(G, P, Q, q_nrm, rng, run):
 	# Extract run options
 	iter = run["iter"]
 	tole = run["tole"]
 	check = run["check"]
 	batches = run["batches"]
 
-	# Estimate initial log-likelihood
-	L_old = shared.loglike(G, P, Q)
-	print(f"Initial log-like: {L_old:.1f}")
-
-	# Parameters for stochastic EM
+	# Set up parameters
 	M, N = G.shape
-	safety = False
-	converged = False
-	L_bat = L_pre = L_old
-	M_bat = ceil(M/batches)
+	L_nrm = float(M)*float(N)
+	if np.any(q_nrm < 2.0*float(M)):
+		loglike = shared.loglike_missing
+	else:
+		loglike = shared.loglike
 
 	# Set up containers for EM algorithm
 	Q1 = np.zeros_like(Q)
@@ -64,13 +60,23 @@ def fastProject(G, P, Q, q_nrm, rng, run):
 	Q_tmp = np.zeros_like(Q)
 	q_bat = np.zeros(N)
 	s_var = np.arange(M, dtype=np.uint32)
+	M_bat = M//batches
+
+	# Estimate initial log-likelihood
+	L_old = loglike(G, P, Q)
+	print(f"Initial log-like: {L_old*L_nrm:.1f}")
+	L_bat = L_pre = L_old
+
+	# Parameters for stochastic EM
+	safety = False
+	converged = False
 
 	# Accelerated priming iteration
 	ts = time()
 	steps(G, P, Q, Q_tmp, q_nrm)
 	quasi(G, P, Q, Q_tmp, Q1, Q2, q_nrm)
 	steps(G, P, Q, Q_tmp, q_nrm)
-	print(f"Performed priming iteration\t({time()-ts:.1f}s)\n", flush=True)
+	print(f"Performed priming iteration.\t({time()-ts:.1f}s)\n", flush=True)
 
 	# fastmixture algorithm
 	ts = time()
@@ -80,7 +86,9 @@ def fastProject(G, P, Q, q_nrm, rng, run):
 		if batches > 1: # Quasi-Newton mini-batch updates
 			rng.shuffle(s_var) # Shuffle SNP order
 			for b in np.arange(batches):
-				s_bat = s_var[(b*M_bat):min((b+1)*M_bat, M)]
+				s_beg = b*M_bat
+				s_end = M if b == (batches - 1) else (b + 1)*M_bat
+				s_bat = s_var[s_beg:s_end]
 				batQuasi(G, P, Q, Q_tmp, Q1, Q2, q_bat, s_bat)
 
 			# Full updates
@@ -94,7 +102,7 @@ def fastProject(G, P, Q, q_nrm, rng, run):
 			if safety: # Safety updates with log-likelihood
 				quasi(G, P, Q, Q_tmp, Q1, Q2, q_nrm)
 				steps(G, P, Q, Q_tmp, q_nrm)
-				L_cur = shared.loglike(G, P, Q)
+				L_cur = loglike(G, P, Q)
 				if L_cur > L_saf:
 					L_saf = L_cur
 				else: # Break and exit with best estimates
@@ -102,7 +110,6 @@ def fastProject(G, P, Q, q_nrm, rng, run):
 					converged = True
 					L_cur = L_old
 					print("No improvement. Returning with best estimate!")
-					print(f"Final log-likelihood: {L_cur:.1f}")
 					break
 
 				# Update best estimates
@@ -116,26 +123,26 @@ def fastProject(G, P, Q, q_nrm, rng, run):
 		# Convergence or halving check
 		if (it + 1) % check == 0:
 			if batches > 1:
-				L_cur = shared.loglike(G, P, Q)
-				print(f"({it+1})\tLog-like: {L_cur:.1f}\t({time()-ts:.1f}s)", flush=True)
+				L_cur = loglike(G, P, Q)
+				print(f"({it+1})\tLog-like: {L_cur*L_nrm:.1f}\t({time()-ts:.1f}s)", flush=True)
 				if (L_cur < L_pre) and not safety: # Check for unstable update
 					print("Turning on safety updates.")
 					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 					L_cur = L_bat = L_old
 					safety = True
 				else: # Check for halving
-					if (L_cur < L_bat) or (abs(L_cur - L_bat) < tole):
+					if L_cur < (L_bat + tole):
 						batches = batches//2 # Halve number of batches
 						if batches > 1:
 							print(f"Halving mini-batches to {batches}.")
+							M_bat = M//batches
 							L_bat = float('-inf')
-							M_bat = ceil(M/batches)
 							L_pre = L_cur
 						else: # Turn off mini-batch acceleration
 							print("Running standard updates.")
 							L_saf = L_cur
 						if not safety:
-							steps(G, P, Q, Q_tmp, q_nrm)
+							quasi(G, P, Q, Q_tmp, Q1, Q2, q_nrm)
 					else:
 						L_bat = L_cur
 						if L_cur > L_old: # Update best estimates
@@ -143,21 +150,20 @@ def fastProject(G, P, Q, q_nrm, rng, run):
 							L_old = L_cur
 			else:
 				if not safety: # Estimate log-like
-					L_cur = shared.loglike(G, P, Q)
-				print(f"({it+1})\tLog-like: {L_cur:.1f}\t({time()-ts:.1f}s)", flush=True)
+					L_cur = loglike(G, P, Q)
+				print(f"({it+1})\tLog-like: {L_cur*L_nrm:.1f}\t({time()-ts:.1f}s)", flush=True)
 				if (L_cur < L_pre) and not safety: # Check for unstable update
 					print("Turning on safety updates.")
 					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 					L_cur = L_old
 					safety = True
 				else: # Check for convergence
-					if abs(L_cur - L_pre) < tole:
+					if L_cur < (L_pre + tole):
 						if L_cur < L_old: # Use best estimates
 							memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 							L_cur = L_old
 						converged = True
-						print("Converged!")
-						print(f"Final log-likelihood: {L_cur:.1f}")
+						print("Converged!\n")
 						break
 					else:
 						L_pre = L_cur
@@ -165,4 +171,13 @@ def fastProject(G, P, Q, q_nrm, rng, run):
 							memoryview(Q_old.ravel())[:] = memoryview(Q.ravel())
 							L_old = L_cur
 			ts = time()
-	return L_cur, it, converged
+	if not converged:
+		print("Failed to converge!\n")
+	L_cur *= L_nrm
+	print(f"Final log-likelihood: {L_cur:.1f}")
+	res = {
+		"like":L_cur,
+		"iter":it,
+		"conv":converged
+	}
+	return res

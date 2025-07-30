@@ -1,7 +1,6 @@
 import numpy as np
 from fastmixture import em
 from fastmixture import shared
-from math import ceil
 from time import time
 
 ##### fastmixture functions #####
@@ -28,28 +27,28 @@ def quasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, q_nrm, y):
 		shared.superQ(Q2, y)
 
 	# Acceleration update
-	em.alphaP(P0, P1, P2)
-	em.alphaQ(Q0, Q1, Q2)
+	em.jumpP(P0, P1, P2)
+	em.jumpQ(Q0, Q1, Q2)
 	if y is not None:
 		shared.superQ(Q0, y)
 
 # Mini-batch QN update
-def batQuasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, q_bat, s, y):
+def batQuasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, q_var, s_var, y):
 	# 1st EM step
-	em.accelBatchP(G, P0, P1, Q0, Q_tmp, q_bat, s)
-	em.accelBatchQ(Q0, Q1, Q_tmp, q_bat)
+	em.batchP(G, P0, P1, Q0, Q_tmp, q_var, s_var)
+	em.batchQ(Q0, Q1, Q_tmp, q_var)
 	if y is not None:
 		shared.superQ(Q1, y)
 
 	# 2nd EM step
-	em.accelBatchP(G, P1, P2, Q1, Q_tmp, q_bat, s)
-	em.accelBatchQ(Q1, Q2, Q_tmp, q_bat)
+	em.batchP(G, P1, P2, Q1, Q_tmp, q_var, s_var)
+	em.batchQ(Q1, Q2, Q_tmp, q_var)
 	if y is not None:
 		shared.superQ(Q2, y)
 
 	# Batch acceleration update
-	em.alphaBatchP(P0, P1, P2, s)
-	em.alphaQ(Q0, Q1, Q2)
+	em.jumpBatchP(P0, P1, P2, s_var)
+	em.jumpQ(Q0, Q1, Q2)
 	if y is not None:
 		shared.superQ(Q0, y)
 
@@ -66,7 +65,7 @@ def safQuasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, q_nrm, y):
 	# P steps
 	em.stepAccelP(G, P0, P1, Q0) # 1st EM step
 	em.stepAccelP(G, P1, P2, Q0) # 2nd EM step
-	em.alphaP(P0, P1, P2) # Acceleration update
+	em.jumpP(P0, P1, P2) # Acceleration update
 
 	# 1st Q step
 	em.stepQ(G, P0, Q0, Q_tmp)
@@ -81,7 +80,7 @@ def safQuasi(G, P0, Q0, Q_tmp, P1, P2, Q1, Q2, q_nrm, y):
 		shared.superQ(Q2, y)
 
 	# Acceleration update
-	em.alphaQ(Q0, Q1, Q2)
+	em.jumpQ(Q0, Q1, Q2)
 	if y is not None:
 		shared.superQ(Q0, y)
 
@@ -94,16 +93,13 @@ def fastRun(G, P, Q, q_nrm, y, rng, run):
 	check = run["check"]
 	batches = run["batches"]
 
-	# Estimate initial log-likelihood
-	L_old = shared.loglike(G, P, Q)
-	print(f"Initial log-like: {L_old:.1f}")
-
-	# Parameters for stochastic EM
+	# Set up parameters
 	M, N = G.shape
-	safety = False
-	converged = False
-	L_bat = L_pre = L_old
-	M_bat = ceil(M/batches)
+	L_nrm = float(M)*float(N)
+	if np.any(q_nrm < 2.0*float(M)):
+		loglike = shared.loglike_missing
+	else:
+		loglike = shared.loglike
 
 	# Set up containers for EM algorithm
 	P1 = np.zeros_like(P)
@@ -113,26 +109,38 @@ def fastRun(G, P, Q, q_nrm, y, rng, run):
 	P_old = np.copy(P)
 	Q_old = np.copy(Q)
 	Q_tmp = np.zeros_like(Q)
-	q_bat = np.zeros(N)
+	q_var = np.zeros(N)
 	s_var = np.arange(M, dtype=np.uint32)
+	M_bat = M//batches
+
+	# Estimate initial log-likelihood
+	L_old = loglike(G, P, Q)
+	print(f"Initial log-like: {L_old*L_nrm:.1f}")
+	L_bat = L_pre = L_old
+
+	# Parameters for stochastic EM
+	safety = False
+	converged = False
 
 	# Accelerated priming iteration
 	ts = time()
 	steps(G, P, Q, Q_tmp, q_nrm, y)
 	quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
 	steps(G, P, Q, Q_tmp, q_nrm, y)
-	print(f"Performed priming iteration\t({time()-ts:.1f}s)\n", flush=True)
+	print(f"Performed priming iteration.\t({time() - ts:.1f}s)\n", flush=True)
 
 	# fastmixture algorithm
 	ts = time()
 	print("Estimating Q and P using mini-batch EM.")
 	print(f"Using {batches} mini-batches.")
 	for it in np.arange(iter):
-		if batches > 1: # Quasi-Newton mini-batch updates
+		if batches > 1: # Accelerated mini-batch updates
 			rng.shuffle(s_var) # Shuffle SNP order
 			for b in np.arange(batches):
-				s_bat = s_var[(b*M_bat):min((b+1)*M_bat, M)]
-				batQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_bat, s_bat, y)
+				s_beg = b*M_bat
+				s_end = M if b == (batches - 1) else (b + 1)*M_bat
+				s_bat = s_var[s_beg:s_end]
+				batQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_var, s_bat, y)
 
 			# Full updates
 			if safety: # Safety updates
@@ -145,7 +153,7 @@ def fastRun(G, P, Q, q_nrm, y, rng, run):
 			if safety: # Safety updates with log-likelihood
 				safQuasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
 				safSteps(G, P, Q, Q_tmp, q_nrm, y)
-				L_cur = shared.loglike(G, P, Q)
+				L_cur = loglike(G, P, Q)
 				if L_cur > L_saf:
 					L_saf = L_cur
 				else: # Break and exit with best estimates
@@ -154,7 +162,6 @@ def fastRun(G, P, Q, q_nrm, y, rng, run):
 					converged = True
 					L_cur = L_old
 					print("No improvement. Returning with best estimate!")
-					print(f"Final log-likelihood: {L_cur:.1f}")
 					break
 				
 				# Update best estimates
@@ -169,8 +176,8 @@ def fastRun(G, P, Q, q_nrm, y, rng, run):
 		# Convergence or halving check
 		if (it + 1) % check == 0:
 			if batches > 1:
-				L_cur = shared.loglike(G, P, Q)
-				print(f"({it+1})\tLog-like: {L_cur:.1f}\t({time()-ts:.1f}s)", flush=True)
+				L_cur = loglike(G, P, Q)
+				print(f"({it + 1})\tLog-like: {L_cur*L_nrm:.1f}\t({time() - ts:.1f}s)", flush=True)
 				if (L_cur < L_pre) and not safety: # Check for unstable update
 					print("Turning on safety updates.")
 					memoryview(P.ravel())[:] = memoryview(P_old.ravel())
@@ -178,18 +185,18 @@ def fastRun(G, P, Q, q_nrm, y, rng, run):
 					L_cur = L_bat = L_old
 					safety = True
 				else: # Check for halving
-					if (L_cur < L_bat) or (abs(L_cur - L_bat) < tole):
+					if L_cur < (L_bat + tole):
 						batches = batches//2 # Halve number of batches
 						if batches > 1:
 							print(f"Halving mini-batches to {batches}.")
+							M_bat = M//batches
 							L_bat = float('-inf')
-							M_bat = ceil(M/batches)
 							L_pre = L_cur
 						else: # Turn off mini-batch acceleration
 							print("Running standard updates.")
 							L_saf = L_cur
 						if not safety:
-							steps(G, P, Q, Q_tmp, q_nrm, y)
+							quasi(G, P, Q, Q_tmp, P1, P2, Q1, Q2, q_nrm, y)
 					else:
 						L_bat = L_cur
 						if L_cur > L_old: # Update best estimates
@@ -198,8 +205,8 @@ def fastRun(G, P, Q, q_nrm, y, rng, run):
 							L_old = L_cur
 			else:
 				if not safety: # Estimate log-like
-					L_cur = shared.loglike(G, P, Q)
-				print(f"({it+1})\tLog-like: {L_cur:.1f}\t({time()-ts:.1f}s)", flush=True)
+					L_cur = loglike(G, P, Q)
+				print(f"({it + 1})\tLog-like: {L_cur*L_nrm:.1f}\t({time() - ts:.1f}s)", flush=True)
 				if (L_cur < L_pre) and not safety: # Check for unstable update
 					print("Turning on safety updates.")
 					memoryview(P.ravel())[:] = memoryview(P_old.ravel())
@@ -207,14 +214,13 @@ def fastRun(G, P, Q, q_nrm, y, rng, run):
 					L_cur = L_old
 					safety = True
 				else: # Check for convergence
-					if abs(L_cur - L_pre) < tole:
+					if L_cur < (L_pre + tole):
 						if L_cur < L_old: # Use best estimates
 							memoryview(P.ravel())[:] = memoryview(P_old.ravel())
 							memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 							L_cur = L_old
 						converged = True
-						print("Converged!")
-						print(f"Final log-likelihood: {L_cur:.1f}")
+						print("Converged!\n")
 						break
 					else:
 						L_pre = L_cur
@@ -223,4 +229,13 @@ def fastRun(G, P, Q, q_nrm, y, rng, run):
 							memoryview(Q_old.ravel())[:] = memoryview(Q.ravel())
 							L_old = L_cur
 			ts = time()
-	return L_cur, it, converged
+	if not converged:
+		print("Failed to converge!\n")
+	L_cur *= L_nrm
+	print(f"Final log-likelihood: {L_cur:.1f}")
+	res = {
+		"like":L_cur,
+		"iter":it,
+		"conv":converged
+	}
+	return res

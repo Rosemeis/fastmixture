@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "1.0.4"
+VERSION = "1.1.0"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -29,9 +29,9 @@ parser.add_argument("-s", "--seed", metavar="INT", type=int, default=42,
 parser.add_argument("-o", "--out", metavar="OUTPUT", default="fastmixture",
 	help="Prefix output name (fastmixture)")
 parser.add_argument("--iter", metavar="INT", type=int, default=1000,
-	help="Maximum number of iterations (1000)")
-parser.add_argument("--tole", metavar="FLOAT", type=float, default=0.5,
-	help="Tolerance in log-likelihood units between iterations (0.5)")
+	help="Maximum number of iterations in EM (1000)")
+parser.add_argument("--tole", metavar="FLOAT", type=float, default=1e-9,
+	help="Tolerance in scaled log-likelihood units (1e-9)")
 parser.add_argument("--batches", metavar="INT", type=int, default=32,
 	help="Number of initial mini-batches (32)")
 parser.add_argument("--supervised", metavar="FILE",
@@ -39,11 +39,17 @@ parser.add_argument("--supervised", metavar="FILE",
 parser.add_argument("--projection", metavar="FILE",
 	help="Path to ancestral allele frequencies file")
 parser.add_argument("--check", metavar="INT", type=int, default=5,
-	help="Number of iterations between check for convergence")
-parser.add_argument("--power", metavar="INT", type=int, default=10,
-	help="Number of power iterations in randomized SVD (10)")
-parser.add_argument("--chunk", metavar="INT", type=int, default=8192,
-	help="Number of SNPs in chunk operations (8192)")
+	help="Number of iterations between convergence checks (5)")
+parser.add_argument("--subsample", metavar="FLOAT", type=float, default=0.7,
+	help="Fraction of SNPs to subsample in SVD/ALS (0.7)")
+parser.add_argument("--min-subsample", metavar="INT", type=int, default=50000,
+	help="Minimum number of SNPs to subsample in SVD/ALS (50000)")
+parser.add_argument("--max-subsample", metavar="INT", type=int, default=500000,
+	help="Maximum number of SNPs to subsample in SVD/ALS (500000)")
+parser.add_argument("--power", metavar="INT", type=int, default=11,
+	help="Number of power iterations in randomized SVD (11)")
+parser.add_argument("--chunk", metavar="INT", type=int, default=4096,
+	help="Number of SNPs in chunk operations (4096)")
 parser.add_argument("--als-iter", metavar="INT", type=int, default=1000,
 	help="Maximum number of iterations in ALS (1000)")
 parser.add_argument("--als-tole", metavar="FLOAT", type=float, default=1e-4,
@@ -76,10 +82,13 @@ def main():
 	assert args.iter > 0, "Please select a valid number of iterations!"
 	assert args.tole >= 0.0, "Please select a valid tolerance!"
 	assert args.check > 0, "Please select a valid value for convergence check!"
+	assert args.min_subsample > 0, "Please select a valid number of SNPs!"
+	assert args.max_subsample > 0, "Please select a valid number of SNPs!"
 	assert args.power > 0, "Please select a valid number of power iterations!"
 	assert args.chunk > 0, "Please select a valid value for chunk size in SVD!"
 	assert args.als_iter > 0, "Please select a valid number of iterations in ALS!"
 	assert args.als_tole >= 0.0, "Please select a valid tolerance in ALS!"
+	assert (args.subsample > 0.0) and (args.subsample <= 1.0), "Please select a valid fraction!"
 	start = time()
 
 	# Create log-file of used arguments
@@ -121,11 +130,13 @@ def main():
 	assert os.path.isfile(f"{args.bfile}.bim"), "bim file doesn't exist!"
 	assert os.path.isfile(f"{args.bfile}.fam"), "fam file doesn't exist!"
 	print("Reading data...", end="", flush=True)
-	G, q_nrm, M, N = utils.readPlink(args.bfile)
-	assert not np.any(q_nrm == 0), "Sample(s) with zero information!"
 	rng = np.random.default_rng(args.seed) # Set up random number generator
+	G, q_nrm, s_ord, M, N = utils.readPlink(args.bfile, rng)
 	print(f"\rLoaded {N} samples and {M} SNPs.")
-
+	assert not np.any(q_nrm == 0), "Sample(s) with zero information!"
+	if int(M/args.batches) < 10000:
+		print("\nWARNING: Few SNPs per mini-batch!\n")
+		
 	# Set up parameters
 	if args.supervised is not None: # Supervised mode
 		# Check input of ancestral sources
@@ -151,14 +162,19 @@ def main():
 	elif args.projection is not None: # Projection mode
 		# Check input of ancestral allele frequencies
 		print("Ancestry estimation in projection mode!")
-		P = np.loadtxt(args.projection, dtype=float).clip(min=1e-5, max=1.0-(1e-5))
-		assert P.shape[0] == M, "Number of SNPs differ between files!"
-		assert P.shape[1] == args.K, "Wrong number of ancestral sources!"
+		P_raw = np.loadtxt(args.projection, dtype=float).clip(min=1e-5, max=1.0-(1e-5))
+		assert P_raw.shape[0] == M, "Number of SNPs differ between files!"
+		assert P_raw.shape[1] == args.K, "Wrong number of ancestral sources!"
+		
+		# Shuffle SNPs according to genotype matrix
+		P = np.zeros_like(P_raw)
+		shared.shuffleP(P_raw, P, s_ord)
+		del P_raw
 
 		# Initialize Q matrix
 		Q = rng.random(size=(N, args.K)).clip(min=1e-5, max=1.0-(1e-5))
 		Q /= np.sum(Q, axis=1, keepdims=True)
-	else: # Standard unsupervised mode
+	else: # Unsupervised mode
 		if args.random_init: # Random initialization
 			print("Random initialization.")
 			P = rng.random(size=(M, args.K)).clip(min=1e-5, max=1.0-(1e-5))
@@ -170,14 +186,22 @@ def main():
 			assert (np.min(f) > 0.0) & (np.max(f) < 1.0), "Please perform MAF filtering!"
 
 			# Initialize P and Q matrices from SVD and ALS
+			print("SVD/ALS initialization.", end="", flush=True)
 			ts = time()
-			print("Performing SVD and ALS.", end="", flush=True)
-			U, V = utils.randomizedSVD(G, f, args.K-1, args.chunk, args.power, rng)
-			P, Q = utils.extractFactor(U, V, f, args.K, args.als_iter, args.als_tole, rng)
-			print(f"\rExtracted factor matrices\t({time()-ts:.1f}s)")
-			del f, U, V
+			if (args.subsample < 1.0) and (args.min_subsample < M): # Subsampling mode
+				B = int(max(args.min_subsample, min(M*args.subsample, args.max_subsample)))
+				U_sub, S, V = utils.randomSVD(G, f, args.K-1, B, args.chunk, args.power, rng)
+				U_rem = utils.projectSVD(G, S, V, f, B, args.chunk)
+				P, Q = utils.factorSub(U_sub, U_rem, S, V, f, args.als_iter, args.als_tole, rng)
+				del U_sub, U_rem
+			else: # Standard mode
+				U, S, V = utils.randomSVD(G, f, args.K-1, M, args.chunk, args.power, rng)
+				P, Q = utils.factorALS(U, S, V, f, args.als_iter, args.als_tole, rng)
+				del U
+			print(f"\rSVD/ALS initialization.\t\t({time()-ts:.1f}s)")
+			del S, V, f
 		y = None
-	
+
 	# Run options dictionary
 	run = {
 		"iter":args.iter,
@@ -189,10 +213,10 @@ def main():
 	# Fastmixture
 	if args.projection is not None: # Projection mode
 		from fastmixture import projection
-		L, it, con = projection.fastProject(G, P, Q, q_nrm, rng, run)
+		res = projection.fastRun(G, P, Q, q_nrm, rng, run)
 	else: # Unsupervised or supervised mode
 		from fastmixture import functions
-		L, it, con = functions.fastRun(G, P, Q, q_nrm, y, rng, run)
+		res = functions.fastRun(G, P, Q, q_nrm, y, rng, run)
 
 	# Print elapsed time for estimation
 	t_tot = time()-start
@@ -204,14 +228,16 @@ def main():
 	np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.Q", Q, fmt="%.6f")
 	print(f"Saved Q matrix as {args.out}.K{args.K}.s{args.seed}.Q")
 	if not args.no_freqs and (args.projection is None): # Save frequencies
-		np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.P", P, fmt="%.6f")
+		P_ord = np.zeros_like(P)
+		shared.reorderP(P, P_ord, s_ord)
+		np.savetxt(f"{args.out}.K{args.K}.s{args.seed}.P", P_ord, fmt="%.6f")
 		print(f"Saved P matrix as {args.out}.K{args.K}.s{args.seed}.P")
 
 	# Write to log-file
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "a") as log:
-		log.write(f"\nFinal log-likelihood: {L:.1f}\n")
-		if con:
-			log.write(f"Converged in {it+1} iterations.\n")
+		log.write(f"\nFinal log-likelihood: {res["like"]:.1f}\n")
+		if res["conv"]:
+			log.write(f"Converged in {res["iter"]+1} iterations.\n")
 		else:
 			log.write(f"EM algorithm did not converge in {args.iter} iterations!\n")
 		log.write(f"Total elapsed time: {t_min}m{t_sec}s\n")
