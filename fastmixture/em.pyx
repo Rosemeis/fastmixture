@@ -10,10 +10,13 @@ ctypedef uint32_t u32
 ctypedef double f64
 
 cdef f64 PRO_MIN = 1e-5
-cdef f64 PRO_MAX = 1.0-(1e-5)
+cdef f64 PRO_MAX = 1.0 - (1e-5)
 cdef f64 ACC_MIN = 1.0
 cdef f64 ACC_MAX = 128.0
-
+cdef inline f64 _fmax(f64 a, f64 b) noexcept nogil: return a if a > b else b
+cdef inline f64 _fmin(f64 a, f64 b) noexcept nogil: return a if a < b else b
+cdef inline f64 _clamp1(f64 a) noexcept nogil: return _fmax(PRO_MIN, _fmin(a, PRO_MAX))
+cdef inline f64 _clamp2(f64 a) noexcept nogil: return _fmax(ACC_MIN, _fmin(a, ACC_MAX))
 
 ##### fastmixture - EM algorithm #####
 # Estimate individual allele frequencies
@@ -81,7 +84,7 @@ cdef inline void _outerP(
 		a = p_a[k]
 		b = p_b[k]
 		d = a*c/(c*(a - b) + b)
-		p[k] = PRO_MIN if d < PRO_MIN else (PRO_MAX if d > PRO_MAX else d)
+		p[k] = _clamp1(d)
 		p_a[k] = 0.0
 		p_b[k] = 0.0
 
@@ -97,7 +100,7 @@ cdef inline void _outerAccelP(
 		a = p_a[k]
 		b = p_b[k]
 		d = a*c/(c*(a - b) + b)
-		p_n[k] = PRO_MIN if d < PRO_MIN else (PRO_MAX if d > PRO_MAX else d)
+		p_n[k] = _clamp1(d)
 		p_a[k] = 0.0
 		p_b[k] = 0.0
 
@@ -111,7 +114,7 @@ cdef inline void _outerQ(
 		f64 a, b
 	for k in range(K):
 		a = q[k]*q_t[k]*c
-		b = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
+		b = _clamp1(a)
 		sumQ += b
 		q[k] = b
 		q_t[k] = 0.0
@@ -128,7 +131,7 @@ cdef inline void _outerAccelQ(
 		f64 a, b
 	for k in range(K):
 		a = q[k]*q_t[k]*c
-		b = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
+		b = _clamp1(a)
 		sumQ += b
 		q_n[k] = b
 		q_t[k] = 0.0
@@ -158,7 +161,7 @@ cdef inline f64 _qnP(
 			sum1 += u*u
 			sum2 += u*v
 	c = -(sum1/sum2)
-	return ACC_MIN if c < ACC_MIN else (ACC_MAX if c > ACC_MAX else c)
+	return _clamp2(c)
 
 # Estimate QN factor for Q
 cdef inline f64 _qnQ(
@@ -175,7 +178,7 @@ cdef inline f64 _qnQ(
 		sum1 += u*u
 		sum2 += u*v
 	c = -(sum1/sum2)
-	return ACC_MIN if c < ACC_MIN else (ACC_MAX if c > ACC_MAX else c)
+	return _clamp2(c)
 
 # Estimate QN factor for batch P
 cdef inline f64 _qnBatch(
@@ -200,7 +203,7 @@ cdef inline f64 _qnBatch(
 			sum1 += u*u
 			sum2 += u*v
 	c = -(sum1/sum2)
-	return ACC_MIN if c < ACC_MIN else (ACC_MAX if c > ACC_MAX else c)
+	return _clamp2(c)
 
 # QN jump update for P
 cdef inline void _computeP(
@@ -211,7 +214,7 @@ cdef inline void _computeP(
 		f64 a
 	for k in range(K):
 		a = c2*p1[k] + c1*p2[k]
-		p0[k] = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
+		p0[k] = _clamp1(a)
 
 # QN jump update for Q
 cdef inline void _computeQ(
@@ -223,7 +226,7 @@ cdef inline void _computeQ(
 		f64 a, b
 	for k in range(K):
 		a = c2*q1[k] + c1*q2[k]
-		b = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
+		b = _clamp1(a)
 		sumQ += b
 		q0[k] = b
 	for k in range(K):

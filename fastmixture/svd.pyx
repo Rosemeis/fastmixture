@@ -8,7 +8,10 @@ ctypedef uint8_t u8
 ctypedef float f32
 
 cdef f32 PRO_MIN = 1e-5
-cdef f32 PRO_MAX = 1.0-(1e-5)
+cdef f32 PRO_MAX = 1.0 - (1e-5)
+cdef inline f32 _fmax(f32 a, f32 b) noexcept nogil: return a if a > b else b
+cdef inline f32 _fmin(f32 a, f32 b) noexcept nogil: return a if a < b else b
+cdef inline f32 _clamp(f32 a) noexcept nogil: return _fmax(PRO_MIN, _fmin(a, PRO_MAX))
 
 
 ##### fastmixture - ALS/SVD optimization #####
@@ -22,7 +25,7 @@ cdef inline void _nrmQ(
 		f32 a, b
 	for k in range(K):
 		a = q[k]
-		b = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
+		b = _clamp(a)
 		sumQ += b
 		q[k] = b
 	for k in range(K):
@@ -97,4 +100,4 @@ cpdef void projectP(
 		p = &P[j,0]
 		for k in range(K):
 			a = p[k]
-			p[k] = PRO_MIN if a < PRO_MIN else (PRO_MAX if a > PRO_MAX else a)
+			p[k] = _clamp(a)
