@@ -15,7 +15,7 @@ cdef f64 PRO_MIN = 1e-5
 cdef f64 PRO_MAX = 1.0 - (1e-5)
 cdef inline f64 _fmax(f64 a, f64 b) noexcept nogil: return a if a > b else b
 cdef inline f64 _fmin(f64 a, f64 b) noexcept nogil: return a if a < b else b
-cdef inline f64 _clamp(f64 a) noexcept nogil: return _fmax(PRO_MIN, _fmin(a, PRO_MAX))
+cdef inline f64 _clamp1(f64 a) noexcept nogil: return _fmax(PRO_MIN, _fmin(a, PRO_MAX))
 
 
 ##### fastmixture - misc. functions ######
@@ -32,7 +32,7 @@ cdef inline void _begQ(
 			q[k] = PRO_MAX if k == (y-1) else PRO_MIN
 	for k in range(K):
 		a = q[k]
-		q[k] = _clamp(a)
+		q[k] = _clamp1(a)
 		sumQ += q[k]
 	for k in range(K):
 		q[k] /= sumQ
@@ -179,7 +179,7 @@ cpdef void initP(
 				a = p[k]
 				if x[k] > 0.0:
 					a = a/x[k]
-				p[k] = _clamp(a)
+				p[k] = _clamp1(a)
 				x[k] = 0.0
 		free(x)
 
