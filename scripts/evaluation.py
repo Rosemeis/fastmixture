@@ -32,8 +32,8 @@ parser.add_argument("--jsd", action="store_true",
 	help="Jensen-Shannon divergence to ground-truth")
 parser.add_argument("--tfile",
 	help="Path to ground truth Q-file")
-parser.add_argument("--indices", type=int, nargs='+',
-	help="Output population based estimates")
+parser.add_argument("--labels",
+	help="Path to labels for population-specific measures")
 
 # Check input
 args = parser.parse_args()
@@ -107,28 +107,23 @@ if args.rmse or args.jsd:
 	# Reorder and compute metric
 	Q = np.ascontiguousarray(Q[:,q_list])
 	S = np.ascontiguousarray(S[:,s_list])
-	if args.indices is None:
+	if args.labels is None: # Compute metric on full dataset
 		if args.rmse:
 			print(f"{shared.rmse(Q, S):.7f}")
 		else:
 			jsd = (shared.divKL(Q, S) + shared.divKL(S, Q))*0.5
 			print(f"{jsd:.7f}")
-	else:
-		for p in range(len(args.indices)-1):
-			Q_sub = Q[args.indices[p]:args.indices[p+1],:]
-			S_sub = S[args.indices[p]:args.indices[p+1],:]
+	else:  # Compute metric in specific populations/partitions
+		Y = np.loadtxt(f"{args.labels}", dtype=np.uint8)
+		U = np.unique(Y)
+		for i, y in enumerate(U):
+			Q_sub = Q[Y == y,:]
+			S_sub = S[Y == y,:]
 			if args.rmse:
-				print(f"{shared.rmse(Q_sub, S_sub):.7f}")
+				print(f"Label {i}:\t{shared.rmse(Q_sub, S_sub):.7f}")
 			else:
 				jsd = (shared.divKL(Q_sub, S_sub) + shared.divKL(S_sub, Q_sub))*0.5
-				print(f"{jsd:.7f}")
-		Q_sub = Q[args.indices[-1]:Q.shape[0],:]
-		S_sub = S[args.indices[-1]:Q.shape[0],:]
-		if args.rmse:
-			print(f"{shared.rmse(Q_sub, S_sub):.7f}")
-		else:
-			jsd = (shared.divKL(Q_sub, S_sub) + shared.divKL(S_sub, Q_sub))*0.5
-			print(f"{jsd:.7f}")
+				print(f"Label {i}:\t{jsd:.7f}")
 else:
 	if args.loglike: # Log-likelihood
 		L = shared.loglike(G, P, Q)
