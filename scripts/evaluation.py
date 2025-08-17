@@ -34,6 +34,8 @@ parser.add_argument("--tfile",
 	help="Path to ground truth Q-file")
 parser.add_argument("--labels",
 	help="Path to labels for population-specific measures")
+parser.add_argument("--only-label", type=int,
+	help="Only output measures from specific label")
 
 # Check input
 args = parser.parse_args()
@@ -115,15 +117,25 @@ if args.rmse or args.jsd:
 			print(f"{jsd:.7f}")
 	else:  # Compute metric in specific populations/partitions
 		Y = np.loadtxt(f"{args.labels}", dtype=np.uint8)
-		U = np.unique(Y)
-		for i, y in enumerate(U):
-			Q_sub = Q[Y == y,:]
-			S_sub = S[Y == y,:]
+		if args.only_label is None:
+			U = np.unique(Y)
+			for i, y in enumerate(U):
+				Q_sub = Q[Y == y,:]
+				S_sub = S[Y == y,:]
+				if args.rmse:
+					print(f"Label {i}:\t{shared.rmse(Q_sub, S_sub):.7f}")
+				else:
+					jsd = (shared.divKL(Q_sub, S_sub) + shared.divKL(S_sub, Q_sub))*0.5
+					print(f"Label {i}:\t{jsd:.7f}")
+		else:
+			assert args.only_label in Y, "Specified population label doesn't exist in file!"
+			Q_sub = Q[Y == args.only_label,:]
+			S_sub = S[Y == args.only_label,:]
 			if args.rmse:
-				print(f"Label {i}:\t{shared.rmse(Q_sub, S_sub):.7f}")
+				print(f"{shared.rmse(Q_sub, S_sub):.7f}")
 			else:
 				jsd = (shared.divKL(Q_sub, S_sub) + shared.divKL(S_sub, Q_sub))*0.5
-				print(f"Label {i}:\t{jsd:.7f}")
+				print(f"{jsd:.7f}")
 else:
 	if args.loglike: # Log-likelihood
 		L = shared.loglike(G, P, Q)
