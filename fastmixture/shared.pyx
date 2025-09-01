@@ -153,6 +153,30 @@ cpdef void expandShuf(
 		free(Q_cnt)
 	omp.omp_destroy_lock(&mutex)
 
+# Expand data from 2-bit to 8-bit genotype matrix
+cpdef void expandGeno(
+		const u8[:,::1] B, u8[:,::1] G
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = G.shape[1]
+		Py_ssize_t N_b = B.shape[1]
+		size_t i, j, b, bit
+		u8[4] recode = [2, 9, 1, 0]
+		u8 mask = 3
+		u8 byte
+		u8* g
+	for j in prange(M, schedule='guided'):
+		i = 0
+		g = &G[j,0]
+		for b in range(N_b):
+			byte = B[j,b]
+			for bit in range(4):
+				g[i] = recode[(byte >> 2*bit) & mask]
+				i = i + 1
+				if i == N:
+					break
+
 # Initialize P in supervised mode
 cpdef void initP(
 		u8[:,::1] G, f64[:,::1] P, const u8[::1] y
@@ -247,7 +271,7 @@ cpdef f64 loglike(
 		free(h)
 	return r/a
 
-# Log-likelihood
+# Log-likelihood accounting for missingness
 cpdef f64 loglike_missing(
 		const u8[:,::1] G, f64[:,::1] P, const f64[:,::1] Q
 	) noexcept nogil:

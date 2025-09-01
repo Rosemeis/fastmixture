@@ -28,6 +28,8 @@ parser.add_argument("--sumsquares", action="store_true",
 	help="Sum-of-squares estimates")
 parser.add_argument("--rmse", action="store_true",
 	help="Root mean-square-error to ground truth")
+parser.add_argument("--pearson", action="store_true",
+	help="Average squared Pearson's correlation to ground-truth")
 parser.add_argument("--jsd", action="store_true",
 	help="Jensen-Shannon divergence to ground-truth")
 parser.add_argument("--tfile",
@@ -40,7 +42,7 @@ parser.add_argument("--only-label", type=int,
 # Check input
 args = parser.parse_args()
 assert args.qfile is not None, "No ancestry proportions (--qfile)!"
-if args.rmse or args.jsd:
+if args.rmse or args.jsd or args.pearson:
 	assert args.tfile is not None, "No ground truth (--tfile)!"
 else:
 	assert args.bfile is not None, "No input data (--bfile)!"
@@ -67,17 +69,18 @@ from fastmixture import utils
 Q = np.loadtxt(f"{args.qfile}", dtype=float)
 if Q.shape[1] > Q.shape[0]:
 	Q = np.ascontiguousarray(Q.T)
-Q.clip(min=args.bound, max=1-(args.bound), out=Q)
-Q /= np.sum(Q, axis=1, keepdims=True)
+if not args.pearson:
+	Q.clip(min=args.bound, max=1-(args.bound), out=Q)
+	Q /= np.sum(Q, axis=1, keepdims=True)
 K = Q.shape[1]
 
 # Load data files needed
-if args.rmse or args.jsd:
+if args.rmse or args.jsd or args.pearson:
 	# Ground truth Q file
 	S = np.loadtxt(f"{args.tfile}", dtype=float)
 else:
 	# Read PLINK files
-	G, _, M, N = utils.readPlink(args.bfile)
+	G, M, N = utils.legacyPlink(args.bfile)
 
 	# Read P file
 	P = np.loadtxt(f"{args.pfile}", dtype=float)
@@ -88,7 +91,7 @@ else:
 	P.clip(min=args.bound, max=1-(args.bound), out=P)
 
 ### Evaluation
-if args.rmse or args.jsd:
+if args.rmse or args.jsd or args.pearson:
 	# Find best matching pairs between the two files
 	q_list = []
 	s_list = []
@@ -112,6 +115,11 @@ if args.rmse or args.jsd:
 	if args.labels is None: # Compute metric on full dataset
 		if args.rmse:
 			print(f"{shared.rmse(Q, S):.7f}")
+		elif args.pearson:
+			p = np.zeros(K)
+			for k in range(K):
+				p[k] = np.corrcoef(Q[:,k], S[:,k])[0,1]**2
+			print(f"{np.mean(p):.7f}")
 		else:
 			jsd = (shared.divKL(Q, S) + shared.divKL(S, Q))*0.5
 			print(f"{jsd:.7f}")
@@ -124,6 +132,11 @@ if args.rmse or args.jsd:
 				S_sub = S[Y == y,:]
 				if args.rmse:
 					print(f"Label {i}:\t{shared.rmse(Q_sub, S_sub):.7f}")
+				elif args.pearson:
+					p = np.zeros(K)
+					for k in range(K):
+						p[k] = np.corrcoef(Q_sub[:,k], S_sub[:,k])[0,1]**2
+					print(f"Label {i}:\t{np.mean(p):.7f}")
 				else:
 					jsd = (shared.divKL(Q_sub, S_sub) + shared.divKL(S_sub, Q_sub))*0.5
 					print(f"Label {i}:\t{jsd:.7f}")
@@ -133,12 +146,17 @@ if args.rmse or args.jsd:
 			S_sub = S[Y == args.only_label,:]
 			if args.rmse:
 				print(f"{shared.rmse(Q_sub, S_sub):.7f}")
+			elif args.pearson:
+				p = np.zeros(K)
+				for k in range(K):
+					p[k] = np.corrcoef(Q_sub[:,k], S_sub[:,k])[0,1]**2
+				print(f"{np.mean(p):.7f}")
 			else:
 				jsd = (shared.divKL(Q_sub, S_sub) + shared.divKL(S_sub, Q_sub))*0.5
 				print(f"{jsd:.7f}")
 else:
 	if args.loglike: # Log-likelihood
-		L = shared.loglike(G, P, Q)
+		L = shared.loglike(G, P, Q)*(float(M)*float(N))
 	else: # Sum-of-squares
 		L = shared.sumSquare(G, P, Q)
-	print(f"{round(L,1)}", flush=True)
+	print(f"{round(L, 1)}", flush=True)
