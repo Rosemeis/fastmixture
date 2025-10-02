@@ -48,10 +48,7 @@ def fastRun(G, P, Q, q_nrm, rng, run):
 	# Set up parameters
 	M, N = G.shape
 	L_nrm = float(M)*float(N)
-	if np.any(q_nrm < 2.0*float(M)):
-		loglike = shared.loglike_missing
-	else:
-		loglike = shared.loglike
+	loglike = shared.loglike_missing if np.any(q_nrm < 2.0*float(M)) else shared.loglike
 
 	# Set up containers for EM algorithm
 	Q1 = np.zeros_like(Q)
