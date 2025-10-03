@@ -266,7 +266,7 @@ cpdef f64 loglike(
 	with nogil, parallel():
 		h = <f64*>calloc(N, sizeof(f64))
 		for j in prange(M, schedule='guided'):
-			_computeH(&Q[0,0], &P[j,0], &h[0], N, K)
+			_computeH(&Q[0,0], &P[j,0], h, N, K)
 			r += _computeL(&G[j,0], h, N)
 		free(h)
 	return r/a
@@ -287,7 +287,7 @@ cpdef f64 loglike_missing(
 	with nogil, parallel():
 		h = <f64*>calloc(N, sizeof(f64))
 		for j in prange(M, schedule='guided'):
-			_computeH(&Q[0,0], &P[j,0], &h[0], N, K)
+			_computeH(&Q[0,0], &P[j,0], h, N, K)
 			r += _computeM(&G[j,0], h, N)
 		free(h)
 	return r/a
