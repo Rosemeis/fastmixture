@@ -1,7 +1,7 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, initializedcheck=False, cdivision=True
 cimport numpy as np
 from cython.parallel import prange
-from libc.math cimport sqrtf
+from libc.math cimport fmaxf, fminf, sqrtf
 from libc.stdint cimport uint8_t
 
 ctypedef uint8_t u8
@@ -9,9 +9,7 @@ ctypedef float f32
 
 cdef f32 PRO_MIN = 1e-5
 cdef f32 PRO_MAX = 1.0 - (1e-5)
-cdef inline f32 _fmaxf(f32 a, f32 b) noexcept nogil: return a if a > b else b
-cdef inline f32 _fminf(f32 a, f32 b) noexcept nogil: return a if a < b else b
-cdef inline f32 _clamp3(f32 a) noexcept nogil: return _fmaxf(PRO_MIN, _fminf(a, PRO_MAX))
+cdef inline f32 _clamp3(f32 a) noexcept nogil: return fmaxf(PRO_MIN, fminf(a, PRO_MAX))
 
 
 ##### fastmixture - ALS/SVD optimization #####
@@ -55,7 +53,7 @@ cpdef void plinkChunk(
 		u8* g
 		f32 d, u
 		f32* x
-	for j in prange(M, schedule='guided'):
+	for j in prange(M, schedule='static'):
 		l = m + j
 		u = 2.0*f[l]
 		g = &G[l,0]
@@ -83,7 +81,7 @@ cpdef void projectQ(
 		Py_ssize_t N = Q.shape[0]
 		Py_ssize_t K = Q.shape[1]
 		size_t i
-	for i in prange(N, schedule='guided'):
+	for i in prange(N, schedule='static'):
 		_nrmQ(&Q[i,0], K)
 
 # Map P parameters to domain
@@ -96,7 +94,7 @@ cpdef void projectP(
 		size_t j, k
 		f32 a
 		f32* p
-	for j in prange(M, schedule='guided'):
+	for j in prange(M, schedule='static'):
 		p = &P[j,0]
 		for k in range(K):
 			a = p[k]

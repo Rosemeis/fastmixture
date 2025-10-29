@@ -2,7 +2,7 @@
 cimport numpy as np
 cimport openmp as omp
 from cython.parallel import parallel, prange
-from libc.math cimport log, sqrt
+from libc.math cimport fmax, fmin, log, sqrt
 from libc.stdint cimport uint8_t, uint32_t
 from libc.stdlib cimport calloc, free
 
@@ -13,9 +13,7 @@ ctypedef double f64
 
 cdef f64 PRO_MIN = 1e-5
 cdef f64 PRO_MAX = 1.0 - (1e-5)
-cdef inline f64 _fmax(f64 a, f64 b) noexcept nogil: return a if a > b else b
-cdef inline f64 _fmin(f64 a, f64 b) noexcept nogil: return a if a < b else b
-cdef inline f64 _clamp1(f64 a) noexcept nogil: return _fmax(PRO_MIN, _fmin(a, PRO_MAX))
+cdef inline f64 _clamp1(f64 a) noexcept nogil: return fmax(PRO_MIN, fmin(a, PRO_MAX))
 
 
 ##### fastmixture - misc. functions ######
@@ -29,7 +27,7 @@ cdef inline void _begQ(
 		f64 a
 	if y > 0:
 		for k in range(k):
-			q[k] = PRO_MAX if k == (y-1) else PRO_MIN
+			q[k] = PRO_MAX if k == (y - 1) else PRO_MIN
 	for k in range(K):
 		a = q[k]
 		q[k] = _clamp1(a)
@@ -197,8 +195,8 @@ cpdef void initP(
 			p = &P[j,0]
 			for i in range(N):
 				if (g[i] != 9) and (y[i] > 0):
-					x[y[i]-1] += 2.0
-					p[y[i]-1] += <f64>g[i]
+					x[y[i] - 1] += 2.0
+					p[y[i] - 1] += <f64>g[i]
 			for k in range(K):
 				a = p[k]
 				if x[k] > 0.0:
@@ -228,7 +226,7 @@ cpdef void superQ(
 		size_t i
 	for i in prange(N, schedule='guided'):
 		if y[i] > 0:
-			_setQ(&Q[i,0], y[i]-1, K)
+			_setQ(&Q[i,0], y[i] - 1, K)
 
 # Estimate minor allele frequencies
 cpdef void estimateFreq(

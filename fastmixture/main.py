@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -159,7 +159,7 @@ def main():
 	elif args.projection is not None: # Projection mode
 		# Check input of ancestral allele frequencies
 		print("Ancestry estimation in projection mode!")
-		P_raw = np.loadtxt(args.projection, dtype=float).clip(min=1e-5, max=1.0-(1e-5))
+		P_raw = np.loadtxt(args.projection, dtype=float).clip(min=1e-5, max=1.0 - (1e-5))
 		assert P_raw.shape[0] == M, "Number of SNPs differ between files!"
 		assert P_raw.shape[1] == args.K, "Wrong number of ancestral sources!"
 		
@@ -169,13 +169,13 @@ def main():
 		del P_raw
 
 		# Initialize Q matrix
-		Q = rng.random(size=(N, args.K)).clip(min=1e-5, max=1.0-(1e-5))
+		Q = rng.random(size=(N, args.K)).clip(min=1e-5, max=1.0 - (1e-5))
 		Q /= np.sum(Q, axis=1, keepdims=True)
 	else: # Unsupervised mode
 		if args.random_init: # Random initialization
 			print("Random initialization.")
-			P = rng.random(size=(M, args.K)).clip(min=1e-5, max=1.0-(1e-5))
-			Q = rng.random(size=(N, args.K)).clip(min=1e-5, max=1.0-(1e-5))
+			P = rng.random(size=(M, args.K)).clip(min=1e-5, max=1.0 - (1e-5))
+			Q = rng.random(size=(N, args.K)).clip(min=1e-5, max=1.0 - (1e-5))
 			Q /= np.sum(Q, axis=1, keepdims=True)
 		else: # SVD-based initialization
 			f = np.zeros(M, dtype=np.float32)
@@ -186,9 +186,9 @@ def main():
 			print("SVD/ALS initialization.", end="", flush=True)
 			ts = time()
 			if (args.subsample < 1.0) and (args.min_subsample < M): # Subsampling mode
-				B = int(max(args.min_subsample, min(M*args.subsample, args.max_subsample)))
-				U_sub, S, V = utils.randomSVD(G, f, args.K-1, B, args.chunk, args.power, rng)
-				U_rem = utils.projectSVD(G, S, V, f, B, args.chunk)
+				M_sub = int(max(args.min_subsample, min(M*args.subsample, args.max_subsample)))
+				U_sub, S, V = utils.randomSVD(G, f, args.K - 1, M_sub, args.chunk, args.power, rng)
+				U_rem = utils.projectSVD(G, S, V, f, M_sub, args.chunk)
 				P, Q = utils.factorSub(U_sub, U_rem, S, V, f, args.als_iter, args.als_tole, rng)
 				del U_sub, U_rem
 			else: # Standard mode
@@ -204,7 +204,7 @@ def main():
 		"iter":args.iter,
 		"tole":args.tole,
 		"check":args.check,
-		"batches":args.batches,
+		"batches":args.batches
 	}
 
 	# Fastmixture
