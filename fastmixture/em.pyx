@@ -4,7 +4,7 @@ cimport openmp as omp
 from cython.parallel import parallel, prange
 from libc.math cimport fmax, fmin
 from libc.stdint cimport uint8_t, uint32_t
-from libc.stdlib cimport calloc, free
+from libc.stdlib cimport abort, calloc, free
 
 ctypedef uint8_t u8
 ctypedef uint32_t u32
@@ -252,8 +252,14 @@ cpdef void updateP(
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
+		# Thread-local buffer allocation
 		p_thr = <f64*>calloc(2*K, sizeof(f64))
+		if p_thr is NULL:
+			abort()
 		q_thr = <f64*>calloc(N*K, sizeof(f64))
+		if q_thr is NULL:
+			abort()
+
 		for j in prange(M, schedule='guided'):
 			g = &G[j,0]
 			p = &P[j,0]
@@ -292,8 +298,14 @@ cpdef void accelP(
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
+		# Thread-local buffer allocation
 		p_thr = <f64*>calloc(2*K, sizeof(f64))
+		if p_thr is NULL:
+			abort()
 		q_thr = <f64*>calloc(N*K, sizeof(f64))
+		if q_thr is NULL:
+			abort()
+
 		for j in prange(M, schedule='guided'):
 			g = &G[j,0]
 			p = &P[j,0]
@@ -382,14 +394,22 @@ cpdef void batchP(
 		f64* p
 		f64* q
 		f64* p_thr
-		f64* q_thr
 		f64* q_len
+		f64* q_thr
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
+		# Thread-local buffer allocation
 		p_thr = <f64*>calloc(2*K, sizeof(f64))
-		q_thr = <f64*>calloc(N*K, sizeof(f64))
+		if p_thr is NULL:
+			abort()
 		q_len = <f64*>calloc(N, sizeof(f64))
+		if q_len is NULL:
+			abort()
+		q_thr = <f64*>calloc(N*K, sizeof(f64))
+		if q_thr is NULL:
+			abort()
+
 		for j in prange(M, schedule='guided'):
 			l = s_var[j]
 			g = &G[l,0]
@@ -459,7 +479,11 @@ cpdef void stepP(
 		f64* q
 		f64* p_thr
 	with nogil, parallel():
+		# Thread-local buffer allocation
 		p_thr = <f64*>calloc(2*K, sizeof(f64))
+		if p_thr is NULL:
+			abort()
+
 		for j in prange(M, schedule='guided'):
 			g = &G[j,0]
 			p = &P[j,0]
@@ -486,7 +510,11 @@ cpdef void stepAccelP(
 		f64* q
 		f64* p_thr
 	with nogil, parallel():
+		# Thread-local buffer allocation
 		p_thr = <f64*>calloc(2*K, sizeof(f64))
+		if p_thr is NULL:
+			abort()
+
 		for j in prange(M, schedule='guided'):
 			p = &P[j,0]
 			g = &G[j,0]
@@ -514,7 +542,11 @@ cpdef void stepQ(
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
+		# Thread-local buffer allocation
 		q_thr = <f64*>calloc(N*K, sizeof(f64))
+		if q_thr is NULL:
+			abort()
+
 		for j in prange(M, schedule='guided'):
 			g = &G[j,0]
 			p = &P[j,0]
@@ -545,13 +577,19 @@ cpdef void stepBatchQ(
 		u8* g
 		f64 h
 		f64* p
-		f64* q_thr
 		f64* q_len
+		f64* q_thr
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
-		q_thr = <f64*>calloc(N*K, sizeof(f64))
+		# Thread-local buffer allocation
 		q_len = <f64*>calloc(N, sizeof(f64))
+		if q_len is NULL:
+			abort()
+		q_thr = <f64*>calloc(N*K, sizeof(f64))
+		if q_thr is NULL:
+			abort()
+
 		for j in prange(M, schedule='guided'):
 			l = s_var[j]
 			g = &G[l,0]

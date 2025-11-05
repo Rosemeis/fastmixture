@@ -4,7 +4,7 @@ cimport openmp as omp
 from cython.parallel import parallel, prange
 from libc.math cimport fmax, fmin, log, sqrt
 from libc.stdint cimport uint8_t, uint32_t
-from libc.stdlib cimport calloc, free
+from libc.stdlib cimport abort, calloc, free
 
 ctypedef uint8_t u8
 ctypedef uint32_t u32
@@ -129,7 +129,11 @@ cpdef void expandShuf(
 		omp.omp_lock_t mutex
 	omp.omp_init_lock(&mutex)
 	with nogil, parallel():
+		# Thread-local buffer allocation
 		Q_cnt = <f64*>calloc(N, sizeof(f64))
+		if Q_cnt is NULL:
+			abort()
+
 		for j in prange(M, schedule='guided'):
 			i = 0
 			g = &G[s_ord[j],0]
@@ -189,7 +193,11 @@ cpdef void initP(
 		f64* p
 		f64* x
 	with nogil, parallel():
+		# Thread-local buffer allocation
 		x = <f64*>calloc(K, sizeof(f64))
+		if x is NULL:
+			abort()
+
 		for j in prange(M, schedule='guided'):
 			g = &G[j,0]
 			p = &P[j,0]
@@ -262,7 +270,11 @@ cpdef f64 loglike(
 		f64 d
 		f64* h
 	with nogil, parallel():
+		# Thread-local buffer allocation
 		h = <f64*>calloc(N, sizeof(f64))
+		if h is NULL:
+			abort()
+
 		for j in prange(M, schedule='guided'):
 			_computeH(&Q[0,0], &P[j,0], h, N, K)
 			r += _computeL(&G[j,0], h, N)
@@ -283,7 +295,11 @@ cpdef f64 loglike_missing(
 		f64 d
 		f64* h
 	with nogil, parallel():
+		# Thread-local buffer allocation
 		h = <f64*>calloc(N, sizeof(f64))
+		if h is NULL:
+			abort()
+
 		for j in prange(M, schedule='guided'):
 			_computeH(&Q[0,0], &P[j,0], h, N, K)
 			r += _computeM(&G[j,0], h, N)
