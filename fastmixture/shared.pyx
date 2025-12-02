@@ -13,7 +13,9 @@ ctypedef double f64
 
 cdef f64 PRO_MIN = 1e-5
 cdef f64 PRO_MAX = 1.0 - (1e-5)
+cdef f64 DEV_MIN = 1e-10
 cdef inline f64 _clamp1(f64 a) noexcept nogil: return fmax(PRO_MIN, fmin(a, PRO_MAX))
+cdef inline f64 _clamp2(f64 a) noexcept nogil: return fmax(DEV_MIN, a)
 
 
 ##### fastmixture - misc. functions ######
@@ -264,10 +266,8 @@ cpdef f64 loglike(
 		Py_ssize_t M = G.shape[0]
 		Py_ssize_t N = G.shape[1]
 		Py_ssize_t K = Q.shape[1]
-		size_t i, j
-		f64 a = (<f64>M)*(<f64>N)
+		size_t j
 		f64 r = 0.0
-		f64 d
 		f64* h
 	with nogil, parallel():
 		# Thread-local buffer allocation
@@ -279,7 +279,7 @@ cpdef f64 loglike(
 			_computeH(&Q[0,0], &P[j,0], h, N, K)
 			r += _computeL(&G[j,0], h, N)
 		free(h)
-	return r/a
+	return r
 
 # Log-likelihood accounting for missingness
 cpdef f64 loglike_missing(
@@ -289,10 +289,8 @@ cpdef f64 loglike_missing(
 		Py_ssize_t M = G.shape[0]
 		Py_ssize_t N = G.shape[1]
 		Py_ssize_t K = Q.shape[1]
-		size_t i, j
-		f64 a = (<f64>M)*(<f64>N)
+		size_t j
 		f64 r = 0.0
-		f64 d
 		f64* h
 	with nogil, parallel():
 		# Thread-local buffer allocation
@@ -304,7 +302,56 @@ cpdef f64 loglike_missing(
 			_computeH(&Q[0,0], &P[j,0], h, N, K)
 			r += _computeM(&G[j,0], h, N)
 		free(h)
-	return r/a
+	return r
+
+# Log-likelihood in cross-validation
+cpdef f64 loglike_cross(
+		const u8[:,::1] G, f64[:,::1] P, const f64[:,::1] Q, const u32[::1] s_ind
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = s_ind.shape[0]
+		Py_ssize_t K = Q.shape[1]
+		size_t i, j, l
+		u8* g
+		f64 r = 0.0
+		f64 d, h
+		f64* p
+	for j in prange(M, schedule='guided'):
+		g = &G[j,0]
+		p = &P[j,0]
+		for i in range(N):
+			l = s_ind[i]
+			if g[l] != 9:
+				h = _computeI(p, &Q[l,0], K)
+				d = <f64>g[l]
+				r += d*log(h) + (2.0 - d)*log(1.0 - h)
+	return r
+
+# Deviance residual in cross-validation
+cpdef f64 deviance(
+		const u8[:,::1] G, f64[:,::1] P, const f64[:,::1] Q, const u32[::1] s_ind
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = s_ind.shape[0]
+		Py_ssize_t K = Q.shape[1]
+		size_t i, j, l
+		u8* g
+		f64 r = 0.0
+		f64 e = 1e-10
+		f64 d, h
+		f64* p
+	for j in prange(M, schedule='guided'):
+		g = &G[j,0]
+		p = &P[j,0]
+		for i in range(N):
+			l = s_ind[i]
+			if g[l] != 9:
+				h = 2.0*_computeI(p, &Q[l,0], K)
+				d = <f64>g[l]
+				r += d*log(_clamp2(d/h)) + (2.0 - d)*log(_clamp2((2.0 - d)/(2.0 - h)))
+	return r
 
 # Reorder ancestral allele frequencies
 cpdef void reorderP(

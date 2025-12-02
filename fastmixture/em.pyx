@@ -204,6 +204,31 @@ cdef inline f64 _qnBatch(
 	c = -(sum1/sum2)
 	return _clamp2(c)
 
+# Estimate QN factor for cross-validation Q
+cdef inline f64 _qnCross(
+		f64* Q0, f64* Q1, f64* Q2, const u32* s_ind, const Py_ssize_t N, const Py_ssize_t K
+	) noexcept nogil:
+	cdef:
+		size_t i, k, l
+		f64 sum1 = 0.0
+		f64 sum2 = 0.0
+		f64 c, u, v
+		f64* q0
+		f64* q1
+		f64* q2
+	for i in prange(N, schedule='guided'):
+		l = s_ind[i]*K
+		q0 = &Q0[l]
+		q1 = &Q1[l]
+		q2 = &Q2[l]
+		for k in range(K):
+			u = q1[k] - q0[k]
+			v = q2[k] - q1[k] - u
+			sum1 += u*u
+			sum2 += u*v
+	c = -(sum1/sum2)
+	return _clamp2(c)
+
 # QN jump update for P
 cdef inline void _computeP(
 		f64* p0, const f64* p1, const f64* p2, const f64 c1, const f64 c2, const Py_ssize_t K
@@ -348,7 +373,7 @@ cpdef void updateQ(
 		Py_ssize_t N = Q.shape[0]
 		Py_ssize_t K = Q.shape[1]
 		size_t i
-	for i in prange(N, schedule='guided'):
+	for i in range(N):
 		_outerQ(&Q[i,0], &Q_tmp[i,0], 1.0/q_nrm[i], K)
 
 # Update Q from temporary arrays in acceleration
@@ -359,7 +384,7 @@ cpdef void accelQ(
 		Py_ssize_t N = Q.shape[0]
 		Py_ssize_t K = Q.shape[1]
 		size_t i
-	for i in prange(N, schedule='guided'):
+	for i in range(N):
 		_outerAccelQ(&Q[i,0], &Q_new[i,0], &Q_tmp[i,0], 1.0/q_nrm[i], K)
 
 # Accelerated jump for Q (QN)
@@ -373,7 +398,7 @@ cpdef void jumpQ(
 		f64 c1, c2
 	c1 = _qnQ(&Q[0,0], &Q1[0,0], &Q2[0,0], N*K)
 	c2 = 1.0 - c1
-	for i in prange(N, schedule='guided'):
+	for i in range(N):
 		_computeQ(&Q[i,0], &Q1[i,0], &Q2[i,0], c1, c2, K)
 
 
@@ -460,6 +485,183 @@ cpdef void batchQ(
 	for i in range(N):
 		_outerAccelQ(&Q[i,0], &Q_new[i,0], &Q_tmp[i,0], 1.0/q_var[i], K)
 		q_var[i] = 0.0
+
+
+### Cross-validation steps
+# Update P in cross-validation
+cpdef void crossP(
+		u8[:,::1] G, f64[:,::1] P, f64[:,::1] Q, f64[:,::1] Q_tmp, const u32[::1] s_ind
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = s_ind.shape[0]
+		Py_ssize_t K = Q.shape[1]
+		size_t i, j, l, x, y, z
+		u8* g
+		f64 h
+		f64* p
+		f64* q
+		f64* p_thr
+		f64* q_thr
+		omp.omp_lock_t mutex
+	omp.omp_init_lock(&mutex)
+	with nogil, parallel():
+		# Thread-local buffer allocation
+		p_thr = <f64*>calloc(2*K, sizeof(f64))
+		if p_thr is NULL:
+			abort()
+		q_thr = <f64*>calloc(N*K, sizeof(f64))
+		if q_thr is NULL:
+			abort()
+
+		for j in prange(M, schedule='guided'):
+			g = &G[j,0]
+			p = &P[j,0]
+			for i in range(N):
+				l = s_ind[i]
+				if g[l] != 9:
+					q = &Q[l,0]
+					h = _computeH(p, q, K)
+					_innerJ(p, q, &p_thr[0], &p_thr[K], &q_thr[i*K], <f64>g[l], h, K)
+			_outerP(p, &p_thr[0], &p_thr[K], K)
+		
+		# omp critical
+		omp.omp_set_lock(&mutex)
+		for x in range(N):
+			z = s_ind[x]
+			for y in range(K):
+				Q_tmp[z,y] += q_thr[x*K + y]
+		omp.omp_unset_lock(&mutex)
+		free(p_thr)
+		free(q_thr)
+	omp.omp_destroy_lock(&mutex)
+
+# Update P in cross-validation in acceleration
+cpdef void crossAccelP(
+		u8[:,::1] G, f64[:,::1] P, f64[:,::1] P_new, f64[:,::1] Q, f64[:,::1] Q_tmp, const u32[::1] s_ind
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = s_ind.shape[0]
+		Py_ssize_t K = Q.shape[1]
+		size_t i, j, l, x, y, z
+		u8* g
+		f64 h
+		f64* p
+		f64* q
+		f64* p_thr
+		f64* q_thr
+		omp.omp_lock_t mutex
+	omp.omp_init_lock(&mutex)
+	with nogil, parallel():
+		# Thread-local buffer allocation
+		p_thr = <f64*>calloc(2*K, sizeof(f64))
+		if p_thr is NULL:
+			abort()
+		q_thr = <f64*>calloc(N*K, sizeof(f64))
+		if q_thr is NULL:
+			abort()
+
+		for j in prange(M, schedule='guided'):
+			g = &G[j,0]
+			p = &P[j,0]
+			for i in range(N):
+				l = s_ind[i]
+				if g[l] != 9:
+					q = &Q[l,0]
+					h = _computeH(p, q, K)
+					_innerJ(p, q, &p_thr[0], &p_thr[K], &q_thr[i*K], <f64>g[l], h, K)
+			_outerAccelP(p, &P_new[j,0], &p_thr[0], &p_thr[K], K)
+		
+		# omp critical
+		omp.omp_set_lock(&mutex)
+		for x in range(N):
+			z = s_ind[x]
+			for y in range(K):
+				Q_tmp[z,y] += q_thr[x*K + y]
+		omp.omp_unset_lock(&mutex)
+		free(p_thr)
+		free(q_thr)
+	omp.omp_destroy_lock(&mutex)
+
+# Update P in cross-validation
+cpdef void crossStepQ(
+		u8[:,::1] G, f64[:,::1] P, f64[:,::1] Q, f64[:,::1] Q_tmp, const u32[::1] s_ind
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t M = G.shape[0]
+		Py_ssize_t N = s_ind.shape[0]
+		Py_ssize_t K = Q.shape[1]
+		size_t i, j, l, x, y, z
+		u8* g
+		f64 h
+		f64* p
+		f64* q_thr
+		omp.omp_lock_t mutex
+	omp.omp_init_lock(&mutex)
+	with nogil, parallel():
+		# Thread-local buffer allocation
+		q_thr = <f64*>calloc(N*K, sizeof(f64))
+		if q_thr is NULL:
+			abort()
+
+		for j in prange(M, schedule='guided'):
+			g = &G[j,0]
+			p = &P[j,0]
+			for i in range(N):
+				l = s_ind[i]
+				if g[l] != 9:
+					h = _computeH(p, &Q[l,0], K)
+					_innerQ(p, &q_thr[i*K], <f64>g[l], h, K)
+		
+		# omp critical
+		omp.omp_set_lock(&mutex)
+		for x in range(N):
+			z = s_ind[x]
+			for y in range(K):
+				Q_tmp[z,y] += q_thr[x*K + y]
+		omp.omp_unset_lock(&mutex)
+		free(q_thr)
+	omp.omp_destroy_lock(&mutex)
+
+# Update Q from temporary arrays (cross-validation)
+cpdef void crossQ(
+		f64[:,::1] Q, f64[:,::1] Q_tmp, f64[::1] q_nrm, const u32[::1] s_ind
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t N = s_ind.shape[0]
+		Py_ssize_t K = Q.shape[1]
+		size_t i, l
+	for i in range(N):
+		l = s_ind[i]
+		_outerQ(&Q[l,0], &Q_tmp[l,0], 1.0/q_nrm[l], K)
+
+# Update Q from temporary arrays in acceleration (cross-validation)
+cpdef void crossAccelQ(
+		const f64[:,::1] Q, f64[:,::1] Q_new, f64[:,::1] Q_tmp, f64[::1] q_nrm, const u32[::1] s_ind
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t N = s_ind.shape[0]
+		Py_ssize_t K = Q.shape[1]
+		size_t i, l
+	for i in range(N):
+		l = s_ind[i]
+		_outerAccelQ(&Q[l,0], &Q_new[l,0], &Q_tmp[l,0], 1.0/q_nrm[l], K)
+
+# Cross-validation accelerated jump for Q (QN)
+cpdef void jumpCrossQ(
+		f64[:,::1] Q, f64[:,::1] Q1, f64[:,::1] Q2, const u32[::1] s_ind
+	) noexcept nogil:
+	cdef:
+		Py_ssize_t N = s_ind.shape[0]
+		Py_ssize_t K = Q.shape[1]
+		size_t i, l
+		f64 c1, c2
+	c1 = _qnCross(&Q[0,0], &Q1[0,0], &Q2[0,0], &s_ind[0], N, K)
+	c2 = 1.0 - c1
+	for i in range(N):
+		l = s_ind[i]
+		_computeQ(&Q[l,0], &Q1[l,0], &Q2[l,0], c1, c2, K)
 
 
 

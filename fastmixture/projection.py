@@ -5,6 +5,11 @@ from time import time
 
 ##### fastmixture functions in projection mode #####
 ### Update functions
+# Single updates
+def steps(G, P, Q, Q_tmp, q_nrm):
+	em.stepQ(G, P, Q, Q_tmp)
+	em.updateQ(Q, Q_tmp, q_nrm)
+
 # Full QN update
 def quasi(G, P, Q0, Q_tmp, Q1, Q2, q_nrm):
 	# 1st EM step
@@ -31,11 +36,6 @@ def batQuasi(G, P, Q0, Q_tmp, Q1, Q2, q_bat, s_bat):
 	# Batch acceleration update
 	em.jumpQ(Q0, Q1, Q2)
 
-# Single updates
-def steps(G, P, Q, Q_tmp, q_nrm):
-	em.stepQ(G, P, Q, Q_tmp)
-	em.updateQ(Q, Q_tmp, q_nrm)
-
 
 ### fastmixture run
 def fastRun(G, P, Q, q_nrm, rng, run):
@@ -47,7 +47,7 @@ def fastRun(G, P, Q, q_nrm, rng, run):
 
 	# Set up parameters
 	M, N = G.shape
-	L_nrm = float(M)*float(N)
+	L_nrm = np.sum(q_nrm)/2.0
 	loglike = shared.loglike_missing if np.any(q_nrm < 2.0*float(M)) else shared.loglike
 
 	# Set up containers for EM algorithm
@@ -61,7 +61,7 @@ def fastRun(G, P, Q, q_nrm, rng, run):
 
 	# Estimate initial log-likelihood
 	L_old = loglike(G, P, Q)
-	print(f"Initial log-like: {L_old*L_nrm:.1f}")
+	print(f"Initial log-like: {L_old:.1f}")
 	L_bat = L_pre = L_old
 
 	# Parameters for stochastic EM
@@ -121,14 +121,14 @@ def fastRun(G, P, Q, q_nrm, rng, run):
 		if (it + 1) % check == 0:
 			if batches > 1:
 				L_cur = loglike(G, P, Q)
-				print(f"({it+1})\tLog-like: {L_cur*L_nrm:.1f}\t({time()-ts:.1f}s)", flush=True)
+				print(f"({it+1})\tLog-like: {L_cur:.1f}\t({time()-ts:.1f}s)", flush=True)
 				if (L_cur < L_pre) and not safety: # Check for unstable update
 					print("Turning on safety updates.")
 					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 					L_cur = L_bat = L_old
 					safety = True
 				else: # Check for halving
-					if L_cur < (L_bat + tole):
+					if (L_cur/L_nrm) < ((L_bat/L_nrm) + tole):
 						batches = batches//2 # Halve number of batches
 						if batches > 1:
 							print(f"Halving mini-batches to {batches}.")
@@ -148,14 +148,14 @@ def fastRun(G, P, Q, q_nrm, rng, run):
 			else:
 				if not safety: # Estimate log-like
 					L_cur = loglike(G, P, Q)
-				print(f"({it+1})\tLog-like: {L_cur*L_nrm:.1f}\t({time()-ts:.1f}s)", flush=True)
+				print(f"({it+1})\tLog-like: {L_cur:.1f}\t({time()-ts:.1f}s)", flush=True)
 				if (L_cur < L_pre) and not safety: # Check for unstable update
 					print("Turning on safety updates.")
 					memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 					L_cur = L_old
 					safety = True
 				else: # Check for convergence
-					if L_cur < (L_pre + tole):
+					if (L_cur/L_nrm) < ((L_pre/L_nrm) + tole):
 						if L_cur < L_old: # Use best estimates
 							memoryview(Q.ravel())[:] = memoryview(Q_old.ravel())
 							L_cur = L_old
@@ -170,7 +170,6 @@ def fastRun(G, P, Q, q_nrm, rng, run):
 			ts = time()
 	if not converged:
 		print("Failed to converge!\n")
-	L_cur *= L_nrm
 	print(f"Final log-likelihood: {L_cur:.1f}")
 	res = {
 		"like":L_cur,

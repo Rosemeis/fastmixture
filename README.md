@@ -1,4 +1,4 @@
-# fastmixture (v1.1.3)
+# fastmixture (v1.2.0)
 `fastmixture` is a new software for estimating ancestry proportions in unrelated individuals. It is significantly faster than previous model-based software while providing accurate and robust ancestry estimates.
 
 
@@ -83,7 +83,7 @@ uvx fastmixture --bfile data/toy.data --K 3 --out data/toy.fast --threads 8
 
 ## Usage
 `fastmixture` requires input data in binary [PLINK](https://www.cog-genomics.org/plink/1.9/input#bed) format. 
-- Choose the value of `K` that best fits your data. We recommend performing principal component analysis (PCA) first as an exploratory analysis before running `fastmixture`.
+- Choose the value of `K` that best fits your data. We recommend performing principal component analysis (PCA) first as an exploratory analysis before running `fastmixture` or to use the cross-validation error defined in `ADMIXTURE` (see below).
 - Use multiple seeds for your analysis to ensure robust and reliable results (e.g. ≥ 3).
 
 ```bash
@@ -115,6 +115,15 @@ fastmixture --bfile new --K 3 --threads 32 --seed 1 --out new.test --projection 
 
 # Outputs Q file (new.test.K3.s1.Q)
 ```
+
+### Cross-validation (model selection)
+Perform cross-validation for model selection of `K`. The cross-validation mode only works with the standard unsupervised mode.
+
+```bash
+# Perform ancestry estimation for K=3 and estimate the cross-validation error using 5 folds
+fastmixture --bfile data --K 3 --threads 32 --seed 1 --out test --cv 5
+```
+
 
 ### Extra options
 * `--iter`, specify maximum number of iterations for EM algorithm (1000)
