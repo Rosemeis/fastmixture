@@ -13,7 +13,7 @@ ctypedef double f64
 cdef f64 PRO_MIN = 1e-5
 cdef f64 PRO_MAX = 1.0 - (1e-5)
 cdef f64 ACC_MIN = 1.0
-cdef f64 ACC_MAX = 128.0
+cdef f64 ACC_MAX = 96.0
 cdef inline f64 _clamp1(f64 a) noexcept nogil: return fmax(PRO_MIN, fmin(a, PRO_MAX))
 cdef inline f64 _clamp2(f64 a) noexcept nogil: return fmax(ACC_MIN, fmin(a, ACC_MAX))
 
