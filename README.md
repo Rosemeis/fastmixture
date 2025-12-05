@@ -127,9 +127,10 @@ fastmixture --bfile data --K 3 --threads 32 --seed 1 --out test --cv 5
 
 ### Extra options
 * `--iter`, specify maximum number of iterations for EM algorithm (1000)
-* `--tole`, specify tolerance for convergence in EM algorithm (0.5)
+* `--tole`, specify tolerance for convergence in EM algorithm (1e-9)
 * `--batches`, specify number of initial mini-batches (32)
 * `--check`, specify number of iterations performed before convergence check (5)
+* `--cv-tole`, specify tolerance for convergence in cross-validation (1e-7)
 * `--subsample`, specify fraction of SNPs to subsample in SVD/ALS initialization (0.7)
 * `--min-subsample`, minimum number of SNPs to subsample (50000)
 * `--max-subsample`, maximum number of SNPs to subsample (500000)
