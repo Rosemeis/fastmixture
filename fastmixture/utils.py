@@ -18,7 +18,7 @@ def readPlink(bfile, rng):
 		B = np.fromfile(bed, dtype=np.uint8, offset=3)
 	assert (B.shape[0] % N_bytes) == 0, "bim file doesn't match!"
 	M = B.shape[0]//N_bytes
-	B.shape = (M, N_bytes)
+	B = B.reshape(M, N_bytes)
 
 	# Set up arrays
 	q_nrm = np.zeros(N)
@@ -45,7 +45,7 @@ def legacyPlink(bfile):
 		B = np.fromfile(bed, dtype=np.uint8, offset=3)
 	assert (B.shape[0] % N_bytes) == 0, "bim file doesn't match!"
 	M = B.shape[0]//N_bytes
-	B.shape = (M, N_bytes)
+	B = B.reshape(M, N_bytes)
 
 	# Set up array
 	G = np.zeros((M, N), dtype=np.uint8)

@@ -12,7 +12,7 @@ import sys
 from datetime import datetime
 from time import time
 
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 
 ### Argparse
 parser = argparse.ArgumentParser(prog="fastmixture")
@@ -247,11 +247,11 @@ def main():
 
 	# Write to log-file
 	with open(f"{args.out}.K{args.K}.s{args.seed}.log", "a") as log:
-		log.write(f"\nFinal log-likelihood: {res["like"]:.1f}\n")
+		log.write(f"\nFinal log-likelihood: {res['like']:.1f}\n")
 		if args.cv is not None:
-			log.write(f"Cross-validation error (SD): {res_crv["avg"]:.5f} ({res_crv["std"]:.5f})\n")
+			log.write(f"Cross-validation error (SD): {res_crv['avg']:.5f} ({res_crv['std']:.5f})\n")
 		if res["conv"]:
-			log.write(f"Converged in {res["iter"]+1} iterations.\n")
+			log.write(f"Converged in {res['iter']+1} iterations.\n")
 		else:
 			log.write(f"EM algorithm did not converge in {args.iter} iterations!\n")
 		log.write(f"Total elapsed time: {t_min}m{t_sec}s\n")
