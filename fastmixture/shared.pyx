@@ -306,7 +306,7 @@ cpdef f64 loglike_missing(
 
 # Log-likelihood in cross-validation
 cpdef f64 loglike_cross(
-        const u8[:,::1] G, f64[:,::1] P, const f64[:,::1] Q, const u32[::1] s_ind
+        u8[:,::1] G, f64[:,::1] P, const f64[:,::1] Q, const u32[::1] s_ind
     ) noexcept nogil:
     cdef:
         Py_ssize_t M = G.shape[0]
@@ -330,7 +330,7 @@ cpdef f64 loglike_cross(
 
 # Deviance residual in cross-validation
 cpdef f64 deviance(
-        const u8[:,::1] G, f64[:,::1] P, const f64[:,::1] Q, const u32[::1] s_ind
+        u8[:,::1] G, f64[:,::1] P, const f64[:,::1] Q, const u32[::1] s_ind
     ) noexcept nogil:
     cdef:
         Py_ssize_t M = G.shape[0]
